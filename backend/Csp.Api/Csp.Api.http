@@ -1,0 +1,6 @@
+@Csp.Api_HostAddress = http://localhost:5250
+
+GET {{Csp.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
