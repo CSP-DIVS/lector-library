@@ -1,13 +1,58 @@
 import { useEffect, useState } from "react";
-import api from "./lib/api";
+import Login from "./components/Login";
+import Dashboard from "./components/Dashboard";
+import "./App.css";
 
 export default function App() {
-  const [msg, setMsg] = useState("");
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    api.get("/health/db").then(r => setMsg(JSON.stringify(r.data))).catch(() => setMsg("API not reachable"));
+    // Check if user is already logged in
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (error) {
+        console.error('Error parsing saved user data:', error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+    }
+    
+    setLoading(false);
   }, []);
-  return <div style={{ padding: 24 }}>
-    <h1>CSP Frontend</h1>
-    <p>{msg}</p>
-  </div>;
+
+  const handleLoginSuccess = (userData) => {
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh' 
+      }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      {user ? (
+        <Dashboard user={user} onLogout={handleLogout} />
+      ) : (
+        <Login onLoginSuccess={handleLoginSuccess} />
+      )}
+    </div>
+  );
 }
