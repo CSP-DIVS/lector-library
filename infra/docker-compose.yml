@@ -12,6 +12,10 @@ services:
       - dbdata:/var/lib/mysql
     networks:
       - lector-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
 
   backend:
     build:
@@ -19,12 +23,15 @@ services:
       dockerfile: infra/backend.Dockerfile
     environment:
       - ConnectionStrings__DefaultConnection=Server=db;Port=3306;Database=${MYSQL_DATABASE};Uid=${MYSQL_USER};Pwd=${MYSQL_PASSWORD};
+      - ASPNETCORE_ENVIRONMENT=Development
     ports:
       - "${API_PORT}:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - lector-network
+    restart: on-failure
 
   frontend:
     build:
