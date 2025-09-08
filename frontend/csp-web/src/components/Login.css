@@ -1,78 +1,108 @@
 .login-container {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 100vh;
-  padding: 24px;
-  background: radial-gradient(1200px 800px at 100% -10%, #0b1222, #0f172a);
+  width: 100vw;
+  padding: 20px;
+  background-image: url('https://images.unsplash.com/photo-1481627834876-b7833e8f5570?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+.login-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
 }
 
 .login-card {
-  width: min(92vw, 420px);
-  padding: 28px;
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(17,24,39,0.96), rgba(17,24,39,0.86));
-  border: 1px solid rgba(255,255,255,0.06);
-  box-shadow: 0 10px 25px rgba(0,0,0,.35);
-  color: #e5e7eb;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  padding: 40px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+  color: #333;
 }
 
-.login-card h2 {
+.login-header {
   text-align: center;
-  margin-bottom: 1.5rem;
-  color: #e5e7eb;
+  margin-bottom: 32px;
 }
 
-.test-credentials {
-  background: rgba(6,182,212,.12);
-  border: 1px solid rgba(6,182,212,.25);
-  padding: 12px;
-  border-radius: 10px;
-  margin-bottom: 1.5rem;
-  text-align: center;
+.logo-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
 }
 
-.test-credentials p {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.9rem;
-  color: #9ca3af;
+.logo-icon {
+  font-size: 3rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
-.test-btn {
-  background: #06b6d4;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 0.9rem;
+.logo-title {
+  margin: 0;
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
 }
 
-.test-btn:hover {
-  background-color: #1976d2;
+.logo-subtitle {
+  margin: 0;
+  font-size: 1rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
 
 .form-group {
-  margin-bottom: 1rem;
+  margin-bottom: 24px;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 6px;
-  color: #9ca3af;
-  font-weight: 700;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .form-group input {
   width: 100%;
-  padding: 12px 14px;
-  border: 1px solid rgba(255,255,255,.1);
+  padding: 14px 16px;
+  border: 2px solid #e5e7eb;
   border-radius: 10px;
-  background: rgba(255,255,255,.02);
-  color: #e5e7eb;
+  background: #ffffff;
+  color: #1f2937;
   font-size: 1rem;
   box-sizing: border-box;
   outline: none;
   transition: border-color 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms cubic-bezier(.2,.8,.2,1);
+  font-weight: 500;
+}
+
+.form-group input::placeholder {
+  color: #9ca3af;
+  font-weight: 400;
 }
 
 .form-group input:focus {
@@ -107,32 +137,50 @@
 }
 
 .submit-btn:hover:not(:disabled) {
-  background-color: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .submit-btn:disabled {
-  opacity: .6;
+  opacity: 0.7;
   cursor: not-allowed;
-}
-.submit-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.02); }
-
-.toggle-mode {
-  text-align: center;
-  margin: 0;
-  color: #9ca3af;
+  transform: none;
 }
 
-.toggle-btn {
-  background: none;
-  border: none;
-  color: #06b6d4;
-  cursor: pointer;
-  font-weight: 700;
-  text-decoration: none;
+/* Responsive design */
+@media (max-width: 768px) {
+  .login-container {
+    padding: 16px;
+  }
+  
+  .login-card {
+    padding: 32px 24px;
+    max-width: 100%;
+  }
+  
+  .logo-title {
+    font-size: 2rem;
+  }
+  
+  .logo-subtitle {
+    font-size: 0.9rem;
+  }
 }
 
-.toggle-btn:hover {
-  color: #22d3ee;
+@media (max-width: 480px) {
+  .login-card {
+    padding: 24px 20px;
+  }
+  
+  .logo-title {
+    font-size: 1.8rem;
+  }
+  
+  .form-group input {
+    padding: 14px 16px;
+  }
+  
+  .submit-btn {
+    padding: 14px;
+  }
 }
-
-@keyframes slideIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }

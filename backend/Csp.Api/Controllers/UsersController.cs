@@ -30,6 +30,39 @@ namespace Csp.Api.Controllers
             return Ok(result);
         }
 
+        [HttpPost]
+        [Authorize(Policy = "RequireAdmin")]
+        public async Task<ActionResult<LoginResponse>> CreateUser([FromBody] CreateUserRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+                return BadRequest(new LoginResponse { Success = false, Message = "Username, email and password are required" });
+
+            var actorId = GetUserId();
+            var result = await userService.CreateUserAsync(request, actorId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet]
+        [Authorize(Policy = "RequireAdmin")]
+        public async Task<ActionResult<PagedMembersResponse>> GetUsers([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? role = null, [FromQuery] bool? isActive = null)
+        {
+            if (page <= 0 || pageSize <= 0) return BadRequest();
+            var result = await userService.GetUsersAsync(q, page, pageSize, role, isActive);
+            return Ok(result);
+        }
+
+        [HttpPut("{id}")]
+        [Authorize(Policy = "RequireAdmin")]
+        public async Task<ActionResult> UpdateUser([FromRoute] int id, [FromBody] UpdateUserRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email)) return BadRequest();
+            var actorId = GetUserId();
+            var ok = await userService.UpdateUserAsync(id, request, actorId);
+            if (!ok) return BadRequest();
+            return Ok();
+        }
+
         [HttpGet("members")]
         [Authorize(Policy = "RequireAdmin")]
         public async Task<ActionResult<PagedMembersResponse>> GetMembers([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)

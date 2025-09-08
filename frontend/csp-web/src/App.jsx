@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import Login from "./components/Login";
-import Dashboard from "./components/Dashboard";
+import MainLayout from "./components/MainLayout";
 import "./App.css";
+import "./styles/theme.css";
 import Toast from "./components/ui/Toast";
 
 export default function App() {
@@ -50,7 +51,7 @@ export default function App() {
   return (
     <div className="app">
       {user ? (
-        <Dashboard user={user} onLogout={handleLogout} />
+        <MainLayout user={user} onLogout={handleLogout} />
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} />
       )}

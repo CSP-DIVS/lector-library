@@ -20,9 +20,28 @@ const Toast = () => {
   return (
     <div style={{ position: 'fixed', top: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 50 }}>
       {items.map(t => (
-        <div key={t.id} className="card shadow-hover" style={{ padding: 12, minWidth: 260, borderLeft: `4px solid ${t.color || 'var(--color-primary)'}` }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>{t.title || 'Notice'}</div>
-          <div style={{ color: 'var(--color-muted)' }}>{t.message}</div>
+        <div key={t.id} className="card shadow-hover" style={{ 
+          padding: 16, 
+          minWidth: 300, 
+          borderLeft: `4px solid ${t.color || 'var(--color-primary)'}`,
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '12px',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+          color: 'var(--color-text)',
+          animation: 'slideInFromRight 0.3s ease-out'
+        }}>
+          <div style={{ 
+            fontWeight: 700, 
+            marginBottom: 6, 
+            color: 'var(--color-text)',
+            fontSize: '0.95rem'
+          }}>{t.title || 'Notice'}</div>
+          <div style={{ 
+            color: 'var(--color-text-secondary)',
+            fontSize: '0.9rem',
+            lineHeight: '1.4'
+          }}>{t.message}</div>
         </div>
       ))}
     </div>

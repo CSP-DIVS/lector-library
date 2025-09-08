@@ -11,7 +11,6 @@ const Login = ({ onLoginSuccess }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [isRegister, setIsRegister] = useState(false);
 
   const handleInputChange = (e) => {
     setFormData({
@@ -26,12 +25,7 @@ const Login = ({ onLoginSuccess }) => {
     setError('');
 
     try {
-      const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
-      const requestData = isRegister 
-        ? { ...formData, email: formData.username + '@example.com' }
-        : formData;
-
-      const response = await api.post(endpoint, requestData);
+      const response = await api.post('/api/auth/login', formData);
       
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
@@ -51,26 +45,18 @@ const Login = ({ onLoginSuccess }) => {
     }
   };
 
-  const useTestCredentials = () => {
-    setFormData({
-      username: 'testuser',
-      password: 'password123'
-    });
-  };
-
   return (
     <div className="login-container">
       <div className="login-card">
-        <h2>{isRegister ? 'Register' : 'Login'}</h2>
-        
-        {!isRegister && (
-          <div className="test-credentials">
-            <p>Test credentials:</p>
-            <button type="button" onClick={useTestCredentials} className="test-btn">
-              Use Test User (testuser / password123)
-            </button>
+        <div className="login-header">
+          <div className="logo-section">
+            <div className="logo-icon">📚</div>
+            <div className="logo-text">
+              <h1 className="logo-title">Lector</h1>
+              <p className="logo-subtitle">Library Management System</p>
+            </div>
           </div>
-        )}
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -100,20 +86,9 @@ const Login = ({ onLoginSuccess }) => {
           {error && <div className="error-message">{error}</div>}
 
           <button type="submit" disabled={loading} className="submit-btn">
-            {loading ? <LoadingSpinner size={20} /> : (isRegister ? 'Register' : 'Login')}
+            {loading ? <LoadingSpinner size={20} /> : 'Sign In'}
           </button>
         </form>
-
-        <p className="toggle-mode">
-          {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <button 
-            type="button" 
-            onClick={() => setIsRegister(!isRegister)}
-            className="toggle-btn"
-          >
-            {isRegister ? 'Login' : 'Register'}
-          </button>
-        </p>
       </div>
     </div>
   );

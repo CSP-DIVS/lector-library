@@ -1,0 +1,44 @@
+.main-layout {
+  display: flex;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: var(--color-background);
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  margin-left: 280px; /* Account for fixed sidebar width */
+}
+
+.content-area {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background-color: var(--color-background-secondary);
+  width: 100%;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .main-layout {
+    flex-direction: column;
+  }
+  
+  .main-content {
+    margin-left: 0; /* Remove sidebar margin on mobile */
+  }
+  
+  .content-area {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .content-area {
+    padding: 12px;
+  }
+}

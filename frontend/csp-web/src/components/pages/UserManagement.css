@@ -1,0 +1,56 @@
+.user-management-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 100%;
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.page-subtitle {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.access-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  text-align: center;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.access-denied-icon {
+  font-size: 4rem;
+  opacity: 0.6;
+}
+
+.access-denied h2 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.access-denied p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.management-content {
+  height: 100%;
+}

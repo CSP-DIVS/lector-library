@@ -12,8 +12,11 @@ namespace Csp.Api.Services
         Task<LoginResponse> RegisterAsync(RegisterRequest request);
         Task InitializeDatabaseAsync();
         Task<LoginResponse> CreateMemberAsync(CreateMemberRequest request, int actorUserId);
+        Task<LoginResponse> CreateUserAsync(CreateUserRequest request, int actorUserId);
         Task<PagedMembersResponse> GetMembersAsync(string? search, int page, int pageSize);
+        Task<PagedMembersResponse> GetUsersAsync(string? search, int page, int pageSize, string? role = null, bool? isActive = null);
         Task<bool> UpdateMemberAsync(int id, UpdateMemberRequest request, int actorUserId);
+        Task<bool> UpdateUserAsync(int id, UpdateUserRequest request, int actorUserId);
         Task<bool> UpdateUserStatusAsync(int id, bool isActive, int actorUserId);
         Task<UserDto?> GetCurrentUserAsync(int id);
         Task<UserDto?> GetUserByUsernameAsync(string username);
@@ -442,6 +445,118 @@ namespace Csp.Api.Services
             updCmd.Parameters.AddWithValue("@Id", id);
             var rows = await updCmd.ExecuteNonQueryAsync();
             return rows > 0;
+        }
+
+        public async Task<LoginResponse> CreateUserAsync(CreateUserRequest request, int actorUserId)
+        {
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            var checkSql = "SELECT COUNT(*) FROM users WHERE Username = @Username OR Email = @Email";
+            await using var checkCmd = new MySqlCommand(checkSql, conn);
+            checkCmd.Parameters.AddWithValue("@Username", request.Username);
+            checkCmd.Parameters.AddWithValue("@Email", request.Email);
+            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+            if (exists)
+            {
+                return new LoginResponse { Success = false, Message = "Username or email already exists" };
+            }
+
+            var insertSql = @"INSERT INTO users (Username, Email, PasswordHash, Role, IsActive)
+                              VALUES (@Username, @Email, @PasswordHash, @Role, 1);
+                              SELECT LAST_INSERT_ID();";
+            await using var insertCmd = new MySqlCommand(insertSql, conn);
+            insertCmd.Parameters.AddWithValue("@Username", request.Username);
+            insertCmd.Parameters.AddWithValue("@Email", request.Email);
+            insertCmd.Parameters.AddWithValue("@PasswordHash", HashPassword(request.Password));
+            insertCmd.Parameters.AddWithValue("@Role", request.Role);
+            var userId = Convert.ToInt32(await insertCmd.ExecuteScalarAsync());
+
+            await WriteAuditAsync(conn, actorUserId, "CreateUser", userId, $"username={request.Username}, role={request.Role}");
+
+            return new LoginResponse
+            {
+                Success = true,
+                Message = $"{request.Role} created successfully",
+                User = new UserDto { Id = userId, Username = request.Username, Email = request.Email, Role = request.Role, IsActive = true }
+            };
+        }
+
+        public async Task<PagedMembersResponse> GetUsersAsync(string? search, int page, int pageSize, string? role = null, bool? isActive = null)
+        {
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            var conditions = new List<string>();
+            if (!string.IsNullOrWhiteSpace(search))
+                conditions.Add("(Username LIKE @q OR Email LIKE @q)");
+            if (!string.IsNullOrWhiteSpace(role))
+                conditions.Add("Role = @role");
+            if (isActive.HasValue)
+                conditions.Add("IsActive = @isActive");
+
+            var where = conditions.Count > 0 ? "WHERE " + string.Join(" AND ", conditions) : "";
+            
+            var countSql = $"SELECT COUNT(*) FROM users {where}";
+            await using var countCmd = new MySqlCommand(countSql, conn);
+            if (!string.IsNullOrWhiteSpace(search)) countCmd.Parameters.AddWithValue("@q", $"%{search}%");
+            if (!string.IsNullOrWhiteSpace(role)) countCmd.Parameters.AddWithValue("@role", role);
+            if (isActive.HasValue) countCmd.Parameters.AddWithValue("@isActive", isActive.Value);
+            var total = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
+
+            var offset = (page - 1) * pageSize;
+            var listSql = $@"SELECT Id, Username, Email, Role, IsActive FROM users {where} ORDER BY Id DESC LIMIT @ps OFFSET @off";
+            await using var listCmd = new MySqlCommand(listSql, conn);
+            if (!string.IsNullOrWhiteSpace(search)) listCmd.Parameters.AddWithValue("@q", $"%{search}%");
+            if (!string.IsNullOrWhiteSpace(role)) listCmd.Parameters.AddWithValue("@role", role);
+            if (isActive.HasValue) listCmd.Parameters.AddWithValue("@isActive", isActive.Value);
+            listCmd.Parameters.AddWithValue("@ps", pageSize);
+            listCmd.Parameters.AddWithValue("@off", offset);
+
+            var items = new List<UserDto>();
+            await using var reader = await listCmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(new UserDto
+                {
+                    Id = Convert.ToInt32(reader["Id"]),
+                    Username = reader["Username"]?.ToString() ?? string.Empty,
+                    Email = reader["Email"]?.ToString() ?? string.Empty,
+                    Role = reader["Role"]?.ToString() ?? string.Empty,
+                    IsActive = Convert.ToBoolean(reader["IsActive"])
+                });
+            }
+
+            return new PagedMembersResponse { Items = items, Total = total, Page = page, PageSize = pageSize };
+        }
+
+        public async Task<bool> UpdateUserAsync(int id, UpdateUserRequest request, int actorUserId)
+        {
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            var dupSql = "SELECT COUNT(*) FROM users WHERE (Username = @Username OR Email = @Email) AND Id <> @Id";
+            await using var dupCmd = new MySqlCommand(dupSql, conn);
+            dupCmd.Parameters.AddWithValue("@Username", request.Username);
+            dupCmd.Parameters.AddWithValue("@Email", request.Email);
+            dupCmd.Parameters.AddWithValue("@Id", id);
+            var dup = Convert.ToInt32(await dupCmd.ExecuteScalarAsync()) > 0;
+            if (dup) return false;
+
+            var updateSql = "UPDATE users SET Username=@Username, Email=@Email, Role=@Role WHERE Id=@Id";
+            await using var updateCmd = new MySqlCommand(updateSql, conn);
+            updateCmd.Parameters.AddWithValue("@Username", request.Username);
+            updateCmd.Parameters.AddWithValue("@Email", request.Email);
+            updateCmd.Parameters.AddWithValue("@Role", request.Role);
+            updateCmd.Parameters.AddWithValue("@Id", id);
+            var rows = await updateCmd.ExecuteNonQueryAsync();
+
+            if (rows > 0)
+            {
+                await WriteAuditAsync(conn, actorUserId, "UpdateUser", id, $"username={request.Username}, role={request.Role}");
+                return true;
+            }
+            return false;
         }
     }
 }
