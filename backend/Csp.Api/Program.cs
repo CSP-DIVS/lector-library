@@ -1,6 +1,9 @@
 using MySql.Data.MySqlClient;
 using Microsoft.OpenApi.Models;
 using Csp.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
@@ -9,6 +12,20 @@ builder.Services.AddSwaggerGen();
 
 // Register services
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+
+var jwtValidation = new JwtTokenService(builder.Configuration).GetValidationParameters();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = jwtValidation;
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("RequireAdmin", policy => policy.RequireRole("Administrator"));
+    options.AddPolicy("RequireLibrarian", policy => policy.RequireRole("Librarian", "Administrator"));
+});
 
 // CORS for local React dev server
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
@@ -28,6 +45,8 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 // Example minimal ADO.NET usage in a test endpoint
@@ -54,3 +73,5 @@ app.MapGet("/health/db", async () =>
 });
 
 app.Run();
+
+public partial class Program { }

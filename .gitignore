@@ -13,10 +13,11 @@
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
-
+frontend\csp-web\node_modules
 # AWS User-specific
 .idea/**/aws.xml
-
+backend\Csp.E2E.Tests
+backend\Csp.Api.Tests
 # Generated files
 .idea/**/contentModel.xml
 

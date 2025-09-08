@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import './Dashboard.css';
+import MemberManagement from './MemberManagement';
+import MyProfile from './MyProfile';
 
 const Dashboard = ({ user, onLogout }) => {
   const [healthCheck, setHealthCheck] = useState('');
+  const [showMembers, setShowMembers] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     // Test API connection
@@ -17,6 +21,8 @@ const Dashboard = ({ user, onLogout }) => {
     localStorage.removeItem('user');
     onLogout();
   };
+
+  const role = user.role || 'Member';
 
   return (
     <div className="dashboard-container">
@@ -36,6 +42,7 @@ const Dashboard = ({ user, onLogout }) => {
           <p><strong>Username:</strong> {user.username}</p>
           <p><strong>Email:</strong> {user.email}</p>
           <p><strong>User ID:</strong> {user.id}</p>
+          <p><strong>Role:</strong> {role}</p>
         </div>
 
         <div className="info-card">
@@ -45,16 +52,45 @@ const Dashboard = ({ user, onLogout }) => {
           <p><strong>Login Status:</strong> Authenticated</p>
         </div>
 
-        <div className="info-card">
-          <h3>Quick Actions</h3>
-          <div className="action-buttons">
-            <button className="action-btn">Manage Books</button>
-            <button className="action-btn">View Members</button>
-            <button className="action-btn">Check Borrowings</button>
-            <button className="action-btn">Generate Reports</button>
+        {role === 'Administrator' && (
+          <div className="info-card">
+            <h3>Admin Actions</h3>
+            <div className="action-buttons">
+              <button className="action-btn" onClick={() => setShowMembers(true)}>Member Management</button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {role === 'Librarian' && (
+          <div className="info-card">
+            <h3>Librarian Actions</h3>
+            <div className="action-buttons">
+              <button className="action-btn">Circulation</button>
+            </div>
+          </div>
+        )}
+
+        {role === 'Member' && (
+          <div className="info-card">
+            <h3>Member Actions</h3>
+            <div className="action-buttons">
+              <button className="action-btn" onClick={() => setShowProfile(true)}>My Profile</button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {role === 'Administrator' && showMembers && (
+        <div className="dashboard-content">
+          <MemberManagement />
+        </div>
+      )}
+
+      {role === 'Member' && showProfile && (
+        <div className="dashboard-content">
+          <MyProfile />
+        </div>
+      )}
     </div>
   );
 };
