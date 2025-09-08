@@ -16,6 +16,7 @@ namespace Csp.Api.Services
         Task<bool> UpdateMemberAsync(int id, UpdateMemberRequest request, int actorUserId);
         Task<bool> UpdateUserStatusAsync(int id, bool isActive, int actorUserId);
         Task<UserDto?> GetCurrentUserAsync(int id);
+        Task<UserDto?> GetUserByUsernameAsync(string username);
         Task<bool> UpdateMyProfileAsync(int id, UpdateProfileRequest request);
         Task<bool> ChangePasswordAsync(int id, ChangePasswordRequest request);
     }
@@ -364,6 +365,28 @@ namespace Csp.Api.Services
             var sql = "SELECT Id, Username, Email, Role, IsActive FROM users WHERE Id=@Id";
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id);
+            await using var r = await cmd.ExecuteReaderAsync();
+            if (await r.ReadAsync())
+            {
+                return new UserDto
+                {
+                    Id = Convert.ToInt32(r["Id"]),
+                    Username = r["Username"]?.ToString() ?? string.Empty,
+                    Email = r["Email"]?.ToString() ?? string.Empty,
+                    Role = r["Role"]?.ToString() ?? string.Empty,
+                    IsActive = Convert.ToBoolean(r["IsActive"])
+                };
+            }
+            return null;
+        }
+
+        public async Task<UserDto?> GetUserByUsernameAsync(string username)
+        {
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            var sql = "SELECT Id, Username, Email, Role, IsActive FROM users WHERE Username=@Username";
+            await using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@Username", username);
             await using var r = await cmd.ExecuteReaderAsync();
             if (await r.ReadAsync())
             {

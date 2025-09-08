@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import api from '../lib/api';
 import './Login.css';
+import LoadingSpinner from './ui/LoadingSpinner';
+import { toast } from './ui/Toast';
 
 const Login = ({ onLoginSuccess }) => {
   const [formData, setFormData] = useState({
@@ -34,12 +36,16 @@ const Login = ({ onLoginSuccess }) => {
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        onLoginSuccess(response.data.user);
+        toast({ title: 'Welcome', message: 'Login successful', color: 'var(--color-success)' });
+        setTimeout(() => onLoginSuccess(response.data.user), 350);
       } else {
         setError(response.data.message);
+        toast({ title: 'Login failed', message: response.data.message, color: 'var(--color-error)' });
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'An error occurred');
+      const msg = err.response?.data?.message || 'An error occurred';
+      setError(msg);
+      toast({ title: 'Error', message: msg, color: 'var(--color-error)' });
     } finally {
       setLoading(false);
     }
@@ -94,7 +100,7 @@ const Login = ({ onLoginSuccess }) => {
           {error && <div className="error-message">{error}</div>}
 
           <button type="submit" disabled={loading} className="submit-btn">
-            {loading ? 'Loading...' : (isRegister ? 'Register' : 'Login')}
+            {loading ? <LoadingSpinner size={20} /> : (isRegister ? 'Register' : 'Login')}
           </button>
         </form>
 

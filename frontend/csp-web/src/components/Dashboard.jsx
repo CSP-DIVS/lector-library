@@ -3,6 +3,8 @@ import api from '../lib/api';
 import './Dashboard.css';
 import MemberManagement from './MemberManagement';
 import MyProfile from './MyProfile';
+import Sidebar from './ui/Sidebar';
+import StatCard from './ui/StatCard';
 
 const Dashboard = ({ user, onLogout }) => {
   const [healthCheck, setHealthCheck] = useState('');
@@ -25,7 +27,9 @@ const Dashboard = ({ user, onLogout }) => {
   const role = user.role || 'Member';
 
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container" style={{ display: 'grid', gridTemplateColumns: '240px 1fr' }}>
+      <Sidebar user={user} onSelect={(v) => { setShowMembers(v==='members'); setShowProfile(v==='profile'); }} />
+      <div>
       <div className="dashboard-header">
         <h1>Library Management System</h1>
         <div className="user-info">
@@ -36,8 +40,13 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
       </div>
 
+      {(!showMembers && !showProfile) && (
       <div className="dashboard-content">
-        <div className="info-card">
+        <StatCard label="Members" value={role==='Administrator' ? '—' : ''} hint="Organization-wide count" />
+        <StatCard label="Active Users" value="—" />
+        <StatCard label="Inactive Users" value="—" />
+
+        <div className="info-card" style={{ gridColumn: 'span 6' }}>
           <h3>User Information</h3>
           <p><strong>Username:</strong> {user.username}</p>
           <p><strong>Email:</strong> {user.email}</p>
@@ -45,7 +54,7 @@ const Dashboard = ({ user, onLogout }) => {
           <p><strong>Role:</strong> {role}</p>
         </div>
 
-        <div className="info-card">
+        <div className="info-card" style={{ gridColumn: 'span 6' }}>
           <h3>System Status</h3>
           <p><strong>Database:</strong> {healthCheck}</p>
           <p><strong>Frontend:</strong> Connected</p>
@@ -79,6 +88,7 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         )}
       </div>
+      )}
 
       {role === 'Administrator' && showMembers && (
         <div className="dashboard-content">
@@ -91,6 +101,7 @@ const Dashboard = ({ user, onLogout }) => {
           <MyProfile />
         </div>
       )}
+      </div>
     </div>
   );
 };

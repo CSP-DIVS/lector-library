@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using Csp.Api.Services;
 using Csp.Api.DTOs;
+using System.Security.Claims;
 
 namespace Csp.Api.Controllers
 {
@@ -23,7 +24,7 @@ namespace Csp.Api.Controllers
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
                 return BadRequest(new LoginResponse { Success = false, Message = "Username, email and password are required" });
 
-            var actorId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
+            var actorId = GetUserId();
             var result = await userService.CreateMemberAsync(request, actorId);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
@@ -43,7 +44,7 @@ namespace Csp.Api.Controllers
         public async Task<ActionResult> UpdateMember([FromRoute] int id, [FromBody] UpdateMemberRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email)) return BadRequest();
-            var actorId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
+            var actorId = GetUserId();
             var ok = await userService.UpdateMemberAsync(id, request, actorId);
             if (!ok) return BadRequest();
             return Ok();
@@ -53,7 +54,7 @@ namespace Csp.Api.Controllers
         [Authorize(Policy = "RequireAdmin")]
         public async Task<ActionResult> UpdateStatus([FromRoute] int id, [FromQuery] bool isActive)
         {
-            var actorId = int.Parse(User.FindFirst("sub")?.Value ?? "0");
+            var actorId = GetUserId();
             var ok = await userService.UpdateUserStatusAsync(id, isActive, actorId);
             if (!ok) return BadRequest();
             return Ok();
@@ -63,17 +64,37 @@ namespace Csp.Api.Controllers
         [Authorize]
         public async Task<ActionResult<UserDto>> GetMyProfile()
         {
-            var id = int.Parse(User.FindFirst("sub")?.Value ?? "0");
-            var user = await userService.GetCurrentUserAsync(id);
-            if (user == null) return NotFound();
-            return Ok(user);
+            var id = GetUserId();
+            if (id > 0)
+            {
+                var byId = await userService.GetCurrentUserAsync(id);
+                if (byId != null) return Ok(byId);
+            }
+
+            var name = User.FindFirst(ClaimTypes.Name)?.Value;
+            if (!string.IsNullOrEmpty(name))
+            {
+                var byName = await userService.GetUserByUsernameAsync(name);
+                if (byName != null) return Ok(byName);
+            }
+
+            var role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty;
+            var fallback = new UserDto
+            {
+                Id = id,
+                Username = name ?? string.Empty,
+                Email = string.Empty,
+                Role = role,
+                IsActive = true
+            };
+            return Ok(fallback);
         }
 
         [HttpPut("my-profile")]
         [Authorize]
         public async Task<ActionResult> UpdateMyProfile([FromBody] UpdateProfileRequest request)
         {
-            var id = int.Parse(User.FindFirst("sub")?.Value ?? "0");
+            var id = GetUserId();
             var ok = await userService.UpdateMyProfileAsync(id, request);
             if (!ok) return BadRequest();
             return Ok();
@@ -83,10 +104,19 @@ namespace Csp.Api.Controllers
         [Authorize]
         public async Task<ActionResult> ChangeMyPassword([FromBody] ChangePasswordRequest request)
         {
-            var id = int.Parse(User.FindFirst("sub")?.Value ?? "0");
+            var id = GetUserId();
             var ok = await userService.ChangePasswordAsync(id, request);
             if (!ok) return BadRequest();
             return Ok();
+        }
+
+        private int GetUserId()
+        {
+            var sub = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                      ?? User.FindFirst("sub")?.Value
+                      ?? "0";
+            if (int.TryParse(sub, out var id)) return id;
+            return 0;
         }
     }
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
 import "./App.css";
+import Toast from "./components/ui/Toast";
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -53,6 +54,7 @@ export default function App() {
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} />
       )}
+      <Toast />
     </div>
   );
 }
