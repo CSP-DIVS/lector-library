@@ -2,6 +2,8 @@
 
 This document outlines the testing strategy for our project, defining how developers and QA will collaborate to ensure high-quality software. The core philosophy is to structure our tests by their *type*, not by the person who writes them.
 
+### FrameWork used : xUnit, Moq(unit), Selenium
+
 ## Core Test Projects
 
 We have two primary test projects, each with a distinct purpose:
@@ -56,7 +58,7 @@ public void HashPassword_WithValidInput_ReturnsHashedString() { /* ... */ }
 
 ---
 
-## 2. `Csp.E2E.Tests` (End-to-End)
+## 2. `Csp.E2E.Tests` (End-to-End) (Covering the full user journey via selenium)
 
 This project is primarily owned by QA to validate complete user stories and workflows.
 
