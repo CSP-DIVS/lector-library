@@ -20,7 +20,7 @@ const MyProfile = ({ user }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const r = await api.get('/api/users/my-profile');
+        const r = await api.get('/users/my-profile');
         setProfile({ username: r.data.username, email: r.data.email });
         // Mock stats - replace with actual API call
         setStats({
@@ -44,7 +44,7 @@ const MyProfile = ({ user }) => {
     setError('');
     setMsg('');
     try {
-      await api.put('/api/users/my-profile', profile);
+      await api.put('/users/my-profile', profile);
       setMsg('Profile updated successfully');
       localStorage.setItem('user', JSON.stringify({ ...(JSON.parse(localStorage.getItem('user')||'{}')), username: profile.username, email: profile.email }));
       setTimeout(() => setMsg(''), 3000);
@@ -72,7 +72,7 @@ const MyProfile = ({ user }) => {
     }
     
     try {
-      await api.put('/api/users/my-password', {
+      await api.put('/users/my-password', {
         currentPassword: pwd.currentPassword,
         newPassword: pwd.newPassword
       });

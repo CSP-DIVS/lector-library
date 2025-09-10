@@ -83,8 +83,19 @@ app.MapGet("/api/health/db", async () =>
     }
 });
 
-// Fallback route for SPA
-app.MapFallbackToFile("index.html");
+// Fallback route for SPA - only for non-API routes
+app.MapFallback(async (HttpContext context) =>
+{
+    // Don't handle API requests with fallback
+    if (context.Request.Path.StartsWithSegments("/api"))
+    {
+        context.Response.StatusCode = 404;
+        return;
+    }
+    
+    // Serve index.html for all other routes (SPA routing)
+    await context.Response.SendFileAsync("wwwroot/index.html");
+});
 
 app.Run();
 

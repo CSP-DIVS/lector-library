@@ -48,11 +48,11 @@ const MemberManagement = ({ user }) => {
       // Try different API endpoints based on what's available
       let r;
       try {
-        r = await api.get('/api/users', { params });
+        r = await api.get('/users', { params });
       } catch (firstErr) {
         // Fallback to members endpoint if users endpoint doesn't exist
         try {
-          r = await api.get('/api/users/members', { params });
+          r = await api.get('/users/members', { params });
         } catch (secondErr) {
           throw new Error('Unable to fetch users from any endpoint');
         }
@@ -112,10 +112,10 @@ const MemberManagement = ({ user }) => {
       } else {
         // Try different create endpoints
         try {
-          await api.post('/api/users', form);
+          await api.post('/users', form);
         } catch (err) {
           // Fallback to members endpoint
-          await api.post('/api/users/members', form);
+          await api.post('/users/members', form);
         }
         setSuccess(`${form.role} created successfully`);
       }
