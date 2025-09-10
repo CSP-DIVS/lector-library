@@ -95,14 +95,14 @@ const MemberManagement = ({ user }) => {
       if (edit) {
         // Try different update endpoints
         try {
-          await api.put(`/api/users/${edit.id}`, {
+          await api.put(`/users/${edit.id}`, {
             username: form.username,
             email: form.email,
             role: form.role
           });
         } catch (err) {
           // Fallback to members endpoint
-          await api.put(`/api/users/members/${edit.id}`, {
+          await api.put(`/users/members/${edit.id}`, {
             username: form.username,
             email: form.email
           });
@@ -461,7 +461,7 @@ const MemberManagement = ({ user }) => {
               setConfirm({ open: false, target: null });
               
               try {
-                await api.put(`/api/users/${user.id}/status`, null, { 
+                await api.put(`/users/${user.id}/status`, null, { 
                   params: { isActive: !user.isActive } 
                 });
                 toast({ 
