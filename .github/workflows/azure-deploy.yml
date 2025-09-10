@@ -48,17 +48,17 @@ jobs:
 
     # Build backend
     - name: Restore dependencies
-      working-directory: backend
+      working-directory: backend/Csp.Api
       run: dotnet restore
 
     - name: Build backend
-      working-directory: backend
+      working-directory: backend/Csp.Api
       run: dotnet build --configuration Release --no-restore
 
     # Publish backend
     - name: Publish backend
-      working-directory: backend
-      run: dotnet publish Csp.Api/Csp.Api.csproj -c Release -o ../publish
+      working-directory: backend/Csp.Api
+      run: dotnet publish -c Release -o ../../../publish
 
     # Deploy to Azure App Service
     - name: Deploy to Azure App Service
