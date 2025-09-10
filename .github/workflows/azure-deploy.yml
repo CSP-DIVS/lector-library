@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: lms-cyf6d5f2fqhvf7b3
+  AZURE_WEBAPP_NAME: lms
   AZURE_WEBAPP_PACKAGE_PATH: './backend/Csp.Api'
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '20'
@@ -48,22 +48,23 @@ jobs:
 
     # Build backend
     - name: Restore dependencies
-      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+      working-directory: backend
       run: dotnet restore
 
     - name: Build backend
-      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+      working-directory: backend
       run: dotnet build --configuration Release --no-restore
 
     # Publish backend
     - name: Publish backend
-      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
-      run: dotnet publish -c Release -o ./publish
+      working-directory: backend
+      run: dotnet publish Csp.Api/Csp.Api.csproj -c Release -o ../publish
 
     # Deploy to Azure App Service
     - name: Deploy to Azure App Service
       uses: azure/webapps-deploy@v2
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        slot-name: 'production'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/publish
+        package: './publish'
