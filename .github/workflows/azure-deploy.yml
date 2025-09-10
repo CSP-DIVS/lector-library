@@ -58,7 +58,14 @@ jobs:
     # Publish backend
     - name: Publish backend
       working-directory: backend/Csp.Api
-      run: dotnet publish -c Release -o ../../../publish
+      run: dotnet publish -c Release -o ../../publish
+
+    # Verify publish folder
+    - name: Verify publish folder
+      run: |
+        ls -la
+        ls -la publish/ || echo "Publish folder not found"
+        pwd
 
     # Deploy to Azure App Service
     - name: Deploy to Azure App Service
