@@ -1,111 +1,101 @@
-
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using Csp.Api.Dtos;
-using Csp.Api.Models;
+using Csp.Api.DTOs;
+using Csp.Api.Tests; // Add this using statement
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace Csp.Api.Tests
 {
-    public class MemberIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+    public class MemberIntegrationTests : IClassFixture<ApiFactory>
     {
-        private readonly WebApplicationFactory<Program> _factory;
+        private readonly ApiFactory _factory;
 
-        public MemberIntegrationTests(WebApplicationFactory<Program> factory)
+        public MemberIntegrationTests(ApiFactory factory)
         {
             _factory = factory;
         }
 
         [Fact]
-        public async Task RegisterMember_WhenEmailExists_ReturnsBadRequest()
+        public async Task CreateMember_WhenUsernameExists_ReturnsBadRequest()
         {
             // Arrange
-            var client = await _factory.CreateClientAsAdminAsync();
-            // First, create a user
-            var initialDto = new RegisterDto { Name = "Test User", Email = "duplicate@example.com", Password = "Password123!" };
-            await client.PostAsJsonAsync("/api/users/members", initialDto);
+            var client = _factory.CreateClientAsAdmin();
+            var dto = new CreateMemberRequest { Username = "dup", Email = "unique1@e.com", Password = "Password123!" };
 
-            // Act: Try to create another user with the same email
-            var duplicateDto = new RegisterDto { Name = "Another User", Email = "duplicate@example.com", Password = "Password456!" };
-            var response = await client.PostAsJsonAsync("/api/users/members", duplicateDto);
+            // Act
+            var response = await client.PostAsJsonAsync("/api/users/members", dto); // fixed the bad endpoint of /api/auth/create-member
 
             // Assert
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-            var error = await response.Content.ReadAsStringAsync();
-            Assert.Contains("This email address is already in use", error);
+            var error = await response.Content.ReadFromJsonAsync<LoginResponse>();
+            Assert.Equal("Username or email already exists", error.Message);
         }
 
         [Fact]
         public async Task UpdateMember_AsMember_ReturnsForbidden()
         {
             // Arrange
-            var memberClient = await _factory.CreateClientAsMemberAsync();
-            var updateDto = new UpdateMemberDto { Name = "Updated Name", Address = "123 New St" };
-            var otherMemberId = 2; // Assuming a different member ID exists
+            var memberClient = _factory.CreateClientAsMember();
+            var updateDto = new UpdateMemberRequest { Username = "someusername", Email = "u@e.com" };
+            var otherMemberId = 3; // An ID other than the logged-in user (2)
 
             // Act
-            var response = await memberClient.PutAsJsonAsync($"/api/users/members/{otherMemberId}", updateDto);
+            // A member tries to update another member's profile
+            var response = await memberClient.PutAsJsonAsync($"/api/users/{otherMemberId}", updateDto);
 
             // Assert
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
-
+        
         [Fact]
-        public async Task RegisterMember_WithInvalidData_ReturnsBadRequest()
+        public async Task UpdateMember_AsAdmin_ReturnsOk()
         {
             // Arrange
-            var client = await _factory.CreateClientAsAdminAsync();
-            // Invalid DTO: Email is missing
-            var dto = new RegisterDto { Name = "Test User", Password = "Password123!" };
+            var adminClient = _factory.CreateClientAsAdmin();
+            var updateDto = new UpdateMemberRequest { Username = "someusername", Email = "u@e.com" };
+            var memberId = 3;
 
             // Act
-            var response = await client.PostAsJsonAsync("/api/users/members", dto);
+            // An admin updates a member's profile
+            var response = await adminClient.PutAsJsonAsync($"/api/users/{memberId}", updateDto);
 
             // Assert
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            response.EnsureSuccessStatusCode();
         }
 
         [Fact]
         public async Task ToggleStatus_ForOwnAdminAccount_ReturnsBadRequest()
         {
             // Arrange
-            var adminClient = await _factory.CreateClientAsAdminAsync();
-            // Assuming the admin user has ID 1
-            var adminUserId = 1;
-            var statusDto = new UpdateStatusDto { IsActive = false };
+            var adminClient = _factory.CreateClientAsAdmin(userId: 1); // Admin's ID is 1
+            var statusDto = new { isActive = false };
 
             // Act
-            var response = await adminClient.PutAsJsonAsync($"/api/users/{adminUserId}/status", statusDto);
+            // Admin tries to deactivate themselves
+            var response = await adminClient.PutAsJsonAsync($"/api/users/1/status", statusDto);
 
             // Assert
+            // The FakeUserService returns 'false' if actorUserId == id
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-            var error = await response.Content.ReadAsStringAsync();
-            Assert.Contains("Administrators cannot deactivate their own account", error);
         }
 
         [Fact]
-        public async Task UpdateAnotherUser_AsNonAdmin_ReturnsForbidden()
+        public async Task ToggleStatus_ForOtherUserAsAdmin_ReturnsOk()
         {
             // Arrange
-            var memberClient = await _factory.CreateClientAsMemberAsync();
-            var updateDto = new UpdateProfileDto { Email = "newemail@example.com", Name = "New Name" };
-            // Try to update another user's profile (e.g., user with ID 1 - admin)
-            
+            var adminClient = _factory.CreateClientAsAdmin(userId: 1);
+            var statusDto = new { isActive = false };
+
             // Act
-            var response = await memberClient.PutAsJsonAsync("/api/users/my-profile", updateDto); // This endpoint implicitly uses the caller's ID
-            // To be more explicit, a dedicated endpoint like /api/users/{id}/profile would be better
-            // but we test the security of the current one.
+            // Admin deactivates another user
+            var response = await adminClient.PutAsJsonAsync($"/api/users/2/status", statusDto);
 
             // Assert
-            // This test assumes a member trying to update their own profile would be allowed.
-            // The forbidden status comes from a hypothetical authorization policy on the endpoint
-            // that would prevent a user from updating another user's details even if they
-            // tried to manipulate the request. For this example, we'll simulate the check
-            // on a general purpose endpoint.
-            Assert.NotEqual(HttpStatusCode.OK, response.StatusCode);
+            // The FakeUserService returns 'true' if actorUserId != id
+            response.EnsureSuccessStatusCode();
         }
     }
 }

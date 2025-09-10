@@ -23,8 +23,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("RequireAdmin", policy => policy.RequireRole("Administrator"));
-    options.AddPolicy("RequireLibrarian", policy => policy.RequireRole("Librarian", "Administrator"));
+    options.AddPolicy("RequireAdmin", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("RequireLibrarian", policy => policy.RequireRole("Librarian", "Admin"));
 });
 
 // CORS for local React dev server

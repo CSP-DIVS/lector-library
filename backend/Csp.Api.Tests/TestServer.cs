@@ -46,6 +46,42 @@ public class FakeUserService : IUserService
     public Task<UserDto?> GetCurrentUserAsync(int id) => Task.FromResult<UserDto?>(new UserDto{ Id=id, Username="me", Email="me@e.com", Role="Member", IsActive=true });
     public Task<bool> UpdateMyProfileAsync(int id, UpdateProfileRequest request) => Task.FromResult(true);
     public Task<bool> ChangePasswordAsync(int id, ChangePasswordRequest request) => Task.FromResult(request.NewPassword.Length >= 8);
+
+    // FIX: Implement missing methods from IUserService
+    public Task<LoginResponse> CreateUserAsync(CreateUserRequest request, int actorUserId)
+    {
+        if (request.Username == "dup")
+        {
+            return Task.FromResult(new LoginResponse { Success = false, Message = "Username or email already exists" });
+        }
+        var newUser = new UserDto { Id = new Random().Next(100, 200), Username = request.Username, Email = request.Email, Role = request.Role, IsActive = true };
+        return Task.FromResult(new LoginResponse { Success = true, User = newUser });
+    }
+
+    public Task<PagedMembersResponse> GetUsersAsync(string? search, int page, int pageSize, string? sort, bool? active)
+    {
+        var users = new List<UserDto>
+        {
+            new UserDto{ Id=1, Username="admin", Email="admin@e.com", Role="Admin", IsActive=true },
+            new UserDto{ Id=2, Username="member", Email="m@e.com", Role="Member", IsActive=true },
+            new UserDto{ Id=3, Username="inactive", Email="ia@e.com", Role="Member", IsActive=false }
+        };
+        return Task.FromResult(new PagedMembersResponse { Items = users, Total = users.Count, Page = page, PageSize = pageSize });
+    }
+
+    public Task<bool> UpdateUserAsync(int id, UpdateUserRequest request, int actorUserId)
+    {
+        return Task.FromResult(true); // Always succeed for mock purposes
+    }
+
+    public Task<UserDto?> GetUserByUsernameAsync(string username)
+    {
+        if (username == "member")
+        {
+            return Task.FromResult<UserDto?>(new UserDto { Id = 2, Username = "member", Email = "m@e.com", Role = "Member", IsActive = true });
+        }
+        return Task.FromResult<UserDto?>(null);
+    }
 }
 
 public class ApiFactory : WebApplicationFactory<Program>
@@ -65,12 +101,32 @@ public class ApiFactory : WebApplicationFactory<Program>
             }).AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
         });
     }
+
+    public HttpClient CreateClientAsAdmin(int userId = 1, string username = "admin")
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Role", "Admin");
+        client.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Username", username);
+        return client;
+    }
+
+    public HttpClient CreateClientAsMember(int userId = 2, string username = "member")
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-Role", "Member");
+        client.DefaultRequestHeaders.Add("X-Test-UserId", userId.ToString());
+        client.DefaultRequestHeaders.Add("X-Test-Username", username);
+        return client;
+    }
+
 }
 
 public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
-    public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock)
-        : base(options, logger, encoder, clock) { }
+    // FIX: Update constructor to remove obsolete ISystemClock
+    public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+        : base(options, logger, encoder) { }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -91,5 +147,3 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 }
-
-
