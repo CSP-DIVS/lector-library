@@ -27,13 +27,19 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("RequireLibrarian", policy => policy.RequireRole("Librarian", "Administrator"));
 });
 
-// CORS for local React dev server
+// CORS for production and local React dev server
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? 
+    new[] { "http://localhost:5173", "http://localhost:3000", "https://lms-cyf6d5f2fqhvf7b3.southindia-01.azurewebsites.net" };
+
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
-    p.WithOrigins("http://localhost:5173", "http://localhost:3000")
+    p.WithOrigins(allowedOrigins)
      .AllowAnyHeader()
      .AllowAnyMethod()));
 
 var app = builder.Build();
+
+// Configure static files for frontend
+app.UseStaticFiles();
 
 // Initialize database
 using (var scope = app.Services.CreateScope())
@@ -42,15 +48,20 @@ using (var scope = app.Services.CreateScope())
     await userService.InitializeDatabaseAsync();
 }
 
-app.UseSwagger();
-app.UseSwaggerUI();
+// Configure the HTTP request pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
 // Example minimal ADO.NET usage in a test endpoint
-app.MapGet("/health/db", async () =>
+app.MapGet("/api/health/db", async () =>
 {
     try
     {
@@ -71,6 +82,9 @@ app.MapGet("/health/db", async () =>
         return Results.Problem($"Database connection failed: {ex.Message}");
     }
 });
+
+// Fallback route for SPA
+app.MapFallbackToFile("index.html");
 
 app.Run();
 

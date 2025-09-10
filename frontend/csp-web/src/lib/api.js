@@ -1,6 +1,17 @@
 import axios from "axios";
+
+// Determine the base URL based on environment
+const getBaseURL = () => {
+  // In production (built app), use relative URLs
+  if (import.meta.env.PROD) {
+    return '/api';
+  }
+  // In development, use the explicit API URL
+  return import.meta.env.VITE_API_BASE || "http://localhost:5192";
+};
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE || "http://localhost:5192"
+  baseURL: getBaseURL()
 });
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');

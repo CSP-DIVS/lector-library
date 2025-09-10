@@ -2,6 +2,14 @@
 
 Modern web application for library user management with role‑based access, built on ASP.NET Core (C#) and React (Vite).
 
+## 🚀 Deployment
+
+**Live Application**: https://lms-cyf6d5f2fqhvf7b3.southindia-01.azurewebsites.net
+
+This application is deployed on Azure App Services with automated CI/CD through GitHub Actions.
+
+For deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Features
 - JWT authentication with role claims and CORS‑enabled API
 - Role‑based dashboards: Member, Librarian, Administrator
@@ -106,6 +114,15 @@ Use `infra/docker-compose.yml` to spin up API + MySQL. Ensure environment variab
 - Restrict CORS to trusted origins
 - Use HTTPS and secure cookies if applicable
 - Add rate limiting on auth endpoints
+
+## Azure Deployment
+The application is configured for deployment to Azure App Services:
+- **App Service**: lms-cyf6d5f2fqhvf7b3.southindia-01.azurewebsites.net
+- **Database**: Azure Database for MySQL
+- **CI/CD**: GitHub Actions with automated builds and deployments
+- **Static Files**: Frontend build integrated with backend for single deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete setup instructions.
 
 ## Troubleshooting
 - Login 500 with HS256: set a 32+ char `Jwt:Secret`

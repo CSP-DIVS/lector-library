@@ -1,0 +1,73 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches: [ main, deploy/usermanagement ]
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: lms-cyf6d5f2fqhvf7b3
+  AZURE_WEBAPP_PACKAGE_PATH: './backend/Csp.Api'
+  DOTNET_VERSION: '8.0.x'
+  NODE_VERSION: '20'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Setup .NET
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    # Setup Node.js for frontend build
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    # Build frontend
+    - name: Install frontend dependencies
+      working-directory: frontend/csp-web
+      run: npm ci
+
+    - name: Build frontend
+      working-directory: frontend/csp-web
+      run: npm run build
+
+    # Copy frontend build to backend wwwroot
+    - name: Copy frontend to backend
+      run: |
+        mkdir -p backend/Csp.Api/wwwroot
+        cp -r frontend/csp-web/dist/* backend/Csp.Api/wwwroot/
+
+    # Build backend
+    - name: Restore dependencies
+      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+      run: dotnet restore
+
+    - name: Build backend
+      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Run tests
+      working-directory: backend
+      run: dotnet test --configuration Release --no-build --verbosity normal
+
+    # Publish backend
+    - name: Publish backend
+      working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+      run: dotnet publish -c Release -o ./publish
+
+    # Deploy to Azure App Service
+    - name: Deploy to Azure App Service
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/publish
