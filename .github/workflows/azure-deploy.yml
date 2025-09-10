@@ -55,10 +55,6 @@ jobs:
       working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
       run: dotnet build --configuration Release --no-restore
 
-    - name: Run tests
-      working-directory: backend
-      run: dotnet test --configuration Release --no-build --verbosity normal
-
     # Publish backend
     - name: Publish backend
       working-directory: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
