@@ -1,0 +1,1 @@
+run 'CSP_E2E_HEADED=true dotnet test' to run in headded mode
