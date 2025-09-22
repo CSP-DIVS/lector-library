@@ -134,6 +134,16 @@ const getMenuItemsForRole = (role) => {
   } else {
     return [
       {
+        title: "Library",
+        items: [
+          {
+            key: 'book-catalog',
+            label: 'Book Catalog',
+            icon: 'M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z'
+          }
+        ]
+      },
+      {
         title: "Services",
         items: [
           {

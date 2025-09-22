@@ -4,6 +4,7 @@ import Header from './ui/Header';
 import HomePage from './pages/HomePage';
 import UserManagement from './pages/UserManagement';
 import BookManagement from './pages/BookManagement';
+import BookCatalog from './pages/BookCatalog';
 import LendingReservation from './pages/LendingReservation';
 import FinesPayment from './pages/FinesPayment';
 import MyProfile from './MyProfile';
@@ -20,6 +21,8 @@ const MainLayout = ({ user, onLogout }) => {
         return <UserManagement user={user} />;
       case 'book-management':
         return <BookManagement user={user} />;
+      case 'book-catalog':
+        return <BookCatalog user={user} />;
       case 'lending-reservation':
         return <LendingReservation user={user} />;
       case 'fines-payment':

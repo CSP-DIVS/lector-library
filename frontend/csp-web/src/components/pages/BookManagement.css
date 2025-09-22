@@ -327,3 +327,36 @@
     flex-direction: column;
   }
 }
+
+/* Inactive book styles */
+.inactive-book {
+  opacity: 0.7;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
+
+.inactive-book .book-title {
+  color: #6c757d;
+}
+
+.inactive-book .book-author {
+  color: #adb5bd;
+}
+
+.inactive-book .book-info {
+  color: #6c757d;
+}
+
+.status-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.status-badge.inactive {
+  background-color: #6c757d;
+  color: white;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+}

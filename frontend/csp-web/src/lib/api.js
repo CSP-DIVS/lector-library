@@ -6,8 +6,8 @@ const getBaseURL = () => {
   if (import.meta.env.PROD) {
     return '/api';
   }
-  // In development, use the explicit API URL
-  return import.meta.env.VITE_API_BASE || "http://localhost:5192";
+  // In development, use the proxy path (Vite will proxy /api to the backend)
+  return '/api';
 };
 
 const api = axios.create({
@@ -16,6 +16,12 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  
+  // Ensure Content-Type is set for requests with data
+  if (config.data !== undefined && !config.headers['Content-Type']) {
+    config.headers['Content-Type'] = 'application/json';
+  }
+  
   return config;
 });
 api.interceptors.response.use(

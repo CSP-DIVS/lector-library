@@ -12,6 +12,7 @@ builder.Services.AddSwaggerGen();
 
 // Register services
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
 var jwtValidation = new JwtTokenService(builder.Configuration).GetValidationParameters();
