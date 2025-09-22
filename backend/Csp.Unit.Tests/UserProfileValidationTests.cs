@@ -76,7 +76,8 @@ namespace Csp.Unit.Tests
                 .ReturnsAsync(true);
             var controller = CreateController(mock);
 
-            var result = await controller.ChangeMyPassword(new ChangePasswordRequest { CurrentPassword = "currentpass", NewPassword = "newpassword1" });
+            // Use a password that meets complexity requirements: uppercase, lowercase, digit, special character
+            var result = await controller.ChangeMyPassword(new ChangePasswordRequest { CurrentPassword = "currentpass", NewPassword = "NewPassword1!" });
             Assert.IsType<OkResult>(result);
         }
 

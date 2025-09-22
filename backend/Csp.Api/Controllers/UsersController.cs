@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Csp.Api.Services;
 using Csp.Api.DTOs;
 using System.Security.Claims;
+using System.Linq;
 
 namespace Csp.Api.Controllers
 {
@@ -127,6 +128,14 @@ namespace Csp.Api.Controllers
         [Authorize]
         public async Task<ActionResult> UpdateMyProfile([FromBody] UpdateProfileRequest request)
         {
+            // Validate email format
+            if (string.IsNullOrWhiteSpace(request.Email) || !IsValidEmail(request.Email))
+                return BadRequest();
+            
+            // Validate username
+            if (string.IsNullOrWhiteSpace(request.Username))
+                return BadRequest();
+
             var id = GetUserId();
             var ok = await userService.UpdateMyProfileAsync(id, request);
             if (!ok) return BadRequest();
@@ -137,6 +146,12 @@ namespace Csp.Api.Controllers
         [Authorize]
         public async Task<ActionResult> ChangeMyPassword([FromBody] ChangePasswordRequest request)
         {
+            // Validate password length and complexity
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || 
+                request.NewPassword.Length < 8 || 
+                !IsValidPassword(request.NewPassword))
+                return BadRequest();
+                
             var id = GetUserId();
             var ok = await userService.ChangePasswordAsync(id, request);
             if (!ok) return BadRequest();
@@ -150,6 +165,30 @@ namespace Csp.Api.Controllers
                       ?? "0";
             if (int.TryParse(sub, out var id)) return id;
             return 0;
+        }
+
+        private bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(email);
+                return addr.Address == email && email.Contains("@") && email.Contains(".");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsValidPassword(string password)
+        {
+            // Password complexity: at least one uppercase, one lowercase, one digit, and one special character
+            var hasUpper = password.Any(char.IsUpper);
+            var hasLower = password.Any(char.IsLower);
+            var hasDigit = password.Any(char.IsDigit);
+            var hasSpecial = password.Any(ch => !char.IsLetterOrDigit(ch));
+            
+            return hasUpper && hasLower && hasDigit && hasSpecial;
         }
     }
 }
