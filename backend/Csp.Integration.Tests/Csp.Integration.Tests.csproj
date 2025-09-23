@@ -7,16 +7,27 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    
+    <!-- Auto-generate test reports -->
+    <VSTestLogger>trx;html;console</VSTestLogger>
+    <VSTestResultsDirectory>$(MSBuildProjectDirectory)\TestReports</VSTestResultsDirectory>
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura,opencover,lcov</CoverletOutputFormat>
+    <CoverletOutput>$(MSBuildProjectDirectory)\Coverage\</CoverletOutput>
+    <Exclude>[*.Tests]*,[xunit*]*</Exclude>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.8" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="ReportGenerator" Version="5.1.26" />
     <PackageReference Include="Testcontainers" Version="4.7.0" />
     <PackageReference Include="Testcontainers.MySql" Version="4.7.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <PackageReference Include="XunitXml.TestLogger" Version="4.0.254" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,5 +37,262 @@
   <ItemGroup>
     <ProjectReference Include="..\Csp.Api\Csp.Api.csproj" />
   </ItemGroup>
+
+  <!-- Auto-create report directories -->
+  <Target Name="CreateReportDirectories" BeforeTargets="VSTest">
+    <MakeDir Directories="$(MSBuildProjectDirectory)\TestReports" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)\Coverage" />
+  </Target>
+
+  <!-- Generate HTML coverage report after tests -->
+  <Target Name="GenerateCoverageReport" AfterTargets="VSTest" Condition="'$(CollectCoverage)' == 'true'">
+    <Message Text="Generating HTML coverage report..." Importance="high" />
+    <ItemGroup>
+      <CoverageFiles Include="$(CoverletOutput)coverage.cobertura.xml" />
+    </ItemGroup>
+    <Exec Command="reportgenerator -reports:@(CoverageFiles) -targetdir:$(MSBuildProjectDirectory)\Coverage\Html -reporttypes:Html" 
+          Condition="Exists('@(CoverageFiles)')" 
+          ContinueOnError="true" />
+  </Target>
+
+  <!-- Custom target to generate enhanced integration test report -->
+  <Target Name="GenerateIntegrationTestReport" AfterTargets="VSTest">
+    <PropertyGroup>
+      <Timestamp>$([System.DateTime]::Now.ToString('yyyy-MM-dd_HH-mm-ss'))</Timestamp>
+    </PropertyGroup>
+    
+    <Message Text="Generating integration test report..." Importance="high" />
+    
+    <!-- Find the latest TRX file -->
+    <ItemGroup>
+      <TrxFiles Include="$(VSTestResultsDirectory)\*.trx" />
+    </ItemGroup>
+    
+    <!-- Generate HTML report using PowerShell -->
+    <Exec Command="powershell -ExecutionPolicy Bypass -Command &quot;&amp; { 
+      $reportPath = '$(MSBuildProjectDirectory)\TestReports\integration_test_report.html'
+      $timestampedReportPath = '$(MSBuildProjectDirectory)\TestReports\IntegrationTestReport_$(Timestamp).html'
+      $trxFiles = Get-ChildItem '$(VSTestResultsDirectory)\*.trx' | Sort-Object LastWriteTime -Descending
+      if ($trxFiles.Count -gt 0) {
+        $xmlPath = $trxFiles[0]
+        [xml]$testResults = Get-Content $xmlPath.FullName
+        $html = @'
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+    &lt;title&gt;Book Management Integration Test Report&lt;/title&gt;
+    &lt;style&gt;
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; color: #2c3e50; border-bottom: 3px solid #e74c3c; padding-bottom: 10px; margin-bottom: 20px; }
+        .summary { display: flex; justify-content: space-around; margin: 20px 0; flex-wrap: wrap; }
+        .summary-card { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 120px; margin: 5px; }
+        .summary-card.passed { background: linear-gradient(135deg, #27ae60 0%, #229954 100%); }
+        .summary-card.failed { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); }
+        .summary-card.skipped { background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%); }
+        .summary-card.total { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); }
+        .summary-card.rate { background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%); }
+        .summary-card h3 { margin: 0 0 10px 0; font-size: 14px; }
+        .summary-card h2 { margin: 0; font-size: 24px; }
+        .test-details { margin-top: 30px; }
+        .test-class { margin: 20px 0; border: 1px solid #ddd; border-radius: 5px; overflow: hidden; }
+        .test-class-header { background-color: #e74c3c; color: white; padding: 15px; font-weight: bold; font-size: 16px; }
+        .test-method { padding: 12px 15px; border-bottom: 1px solid #eee; }
+        .test-method:last-child { border-bottom: none; }
+        .test-method.passed { background-color: #d5f4e6; border-left: 4px solid #27ae60; }
+        .test-method.failed { background-color: #fadbd8; border-left: 4px solid #e74c3c; }
+        .test-method.skipped { background-color: #fdeaa7; border-left: 4px solid #f39c12; }
+        .test-name { font-weight: bold; color: #2c3e50; }
+        .test-duration { float: right; color: #7f8c8d; font-size: 12px; }
+        .error-message { color: #e74c3c; font-size: 12px; margin-top: 5px; font-family: monospace; background-color: #f8f9fa; padding: 5px; border-radius: 3px; }
+        .timestamp { text-align: center; color: #666; margin-top: 30px; font-style: italic; }
+        .info-section { background-color: #fdf2e9; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #e67e22; }
+        .methodology { background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .methodology h3 { color: #495057; margin-top: 0; }
+        .methodology ul { margin: 10px 0; }
+        .methodology .category { margin-bottom: 15px; }
+        .methodology .category-title { font-weight: bold; color: #e74c3c; margin-bottom: 5px; }
+        .links { text-align: center; margin: 20px 0; }
+        .links a { color: #e74c3c; text-decoration: none; margin: 0 15px; padding: 8px 16px; border: 1px solid #e74c3c; border-radius: 4px; }
+        .links a:hover { background-color: #e74c3c; color: white; text-decoration: none; }
+        .integration-badge { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px; display: inline-block; margin-left: 10px; }
+    &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;div class=''container''&gt;
+        &lt;div class=''header''&gt;
+            &lt;h1&gt;🔗 Book Management Integration Test Report&lt;/h1&gt;
+            &lt;span class=''integration-badge''&gt;INTEGRATION TESTS&lt;/span&gt;
+            &lt;h2&gt;End-to-End Functionality Validation&lt;/h2&gt;
+        &lt;/div&gt;
+'@
+        
+        $counters = $testResults.TestRun.ResultSummary.Counters
+        $total = [int]$counters.total
+        $passed = [int]$counters.passed
+        $failed = [int]$counters.failed
+        $skipped = if($counters.skipped) { [int]$counters.skipped } else { 0 }
+        $passRate = if($total -gt 0) { [math]::Round(($passed / $total) * 100, 2) } else { 0 }
+        $duration = if($testResults.TestRun.Times.finished -and $testResults.TestRun.Times.start) { 
+            $testResults.TestRun.Times.finished - $testResults.TestRun.Times.start 
+        } else { 
+            'N/A' 
+        }
+        
+        $html += @'
+        &lt;div class=''summary''&gt;
+            &lt;div class=''summary-card total''&gt;
+                &lt;h3&gt;Total Tests&lt;/h3&gt;
+                &lt;h2&gt;'+ $total + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card passed''&gt;
+                &lt;h3&gt;✅ Passed&lt;/h3&gt;
+                &lt;h2&gt;'+ $passed + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card failed''&gt;
+                &lt;h3&gt;❌ Failed&lt;/h3&gt;
+                &lt;h2&gt;'+ $failed + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card skipped''&gt;
+                &lt;h3&gt;⏭️ Skipped&lt;/h3&gt;
+                &lt;h2&gt;'+ $skipped + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card rate''&gt;
+                &lt;h3&gt;Pass Rate&lt;/h3&gt;
+                &lt;h2&gt;'+ $passRate + @'%&lt;/h2&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+        
+        &lt;div class=''info-section''&gt;
+            &lt;h3&gt;📊 Test Execution Summary&lt;/h3&gt;
+            &lt;p&gt;&lt;strong&gt;Execution Time:&lt;/strong&gt; '+ $duration + @'&lt;/p&gt;
+            &lt;p&gt;&lt;strong&gt;Test Framework:&lt;/strong&gt; xUnit.net with ASP.NET Core TestHost&lt;/p&gt;
+            &lt;p&gt;&lt;strong&gt;Database:&lt;/strong&gt; MySQL Test Containers (with local fallback)&lt;/p&gt;
+            &lt;p&gt;&lt;strong&gt;Authentication:&lt;/strong&gt; JWT Token-based testing&lt;/p&gt;
+            &lt;p&gt;&lt;strong&gt;Coverage Report:&lt;/strong&gt; See Coverage/Html/index.html for detailed code coverage&lt;/p&gt;
+        &lt;/div&gt;
+        
+        &lt;div class=''links''&gt;
+            &lt;a href=''file:///$(MSBuildProjectDirectory.Replace('\'','/').Replace(':',''))/Coverage/Html/index.html''&gt;📈 Open Coverage Report&lt;/a&gt;
+            &lt;a href=''file:///$(MSBuildProjectDirectory.Replace('\'','/').Replace(':',''))/TestReports''&gt;📁 Test Reports Folder&lt;/a&gt;
+        &lt;/div&gt;
+        
+        &lt;div class=''methodology''&gt;
+            &lt;h3&gt;🧪 Integration Testing Approach&lt;/h3&gt;
+            &lt;div class=''category''&gt;
+                &lt;div class=''category-title''&gt;✅ Positive Scenarios (Expected Functionality)&lt;/div&gt;
+                &lt;ul&gt;
+                    &lt;li&gt;&lt;strong&gt;Book Creation:&lt;/strong&gt; Valid data submission and database persistence&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Book Retrieval:&lt;/strong&gt; Pagination, search, and filtering capabilities&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Book Updates:&lt;/strong&gt; Information updates and status changes&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Book Deletion:&lt;/strong&gt; Proper removal and verification&lt;/li&gt;
+                &lt;/ul&gt;
+            &lt;/div&gt;
+            &lt;div class=''category''&gt;
+                &lt;div class=''category-title''&gt;❌ Negative Scenarios (Error Handling)&lt;/div&gt;
+                &lt;ul&gt;
+                    &lt;li&gt;&lt;strong&gt;Data Validation:&lt;/strong&gt; Invalid inputs and boundary conditions&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Business Rules:&lt;/strong&gt; ISBN uniqueness, required fields&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Edge Cases:&lt;/strong&gt; Non-existent resources and invalid operations&lt;/li&gt;
+                &lt;/ul&gt;
+            &lt;/div&gt;
+            &lt;div class=''category''&gt;
+                &lt;div class=''category-title''&gt;🔒 Security Scenarios (Authorization &amp; Authentication)&lt;/div&gt;
+                &lt;ul&gt;
+                    &lt;li&gt;&lt;strong&gt;Role-based Access:&lt;/strong&gt; Librarian vs Member permissions&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;JWT Authentication:&lt;/strong&gt; Token validation and expiration&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Unauthorized Access:&lt;/strong&gt; Proper rejection of invalid requests&lt;/li&gt;
+                &lt;/ul&gt;
+            &lt;/div&gt;
+            &lt;div class=''category''&gt;
+                &lt;div class=''category-title''&gt;🔧 Technical Features&lt;/div&gt;
+                &lt;ul&gt;
+                    &lt;li&gt;&lt;strong&gt;HTTP Integration:&lt;/strong&gt; Full request/response cycle testing&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Database Integration:&lt;/strong&gt; Real database operations and transactions&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;Service Layer:&lt;/strong&gt; Business logic and data persistence validation&lt;/li&gt;
+                    &lt;li&gt;&lt;strong&gt;API Contracts:&lt;/strong&gt; Request/response format verification&lt;/li&gt;
+                &lt;/ul&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+'@
+        
+        # Parse test results
+        $testUnitResults = $testResults.TestRun.Results.UnitTestResult
+        $testDefinitions = $testResults.TestRun.TestDefinitions.UnitTest
+        
+        if ($testUnitResults) {
+            $html += '&lt;div class=''test-details''&gt;'
+            $html += '&lt;h3&gt;📋 Detailed Test Results&lt;/h3&gt;'
+            
+            # Group tests by class
+            $testsByClass = @{}
+            foreach ($test in $testUnitResults) {
+                $className = ($test.testName -split '\.')[0..1] -join '.'
+                if (-not $testsByClass.ContainsKey($className)) {
+                    $testsByClass[$className] = @()
+                }
+                $testsByClass[$className] += $test
+            }
+            
+            foreach ($className in $testsByClass.Keys | Sort-Object) {
+                $classTests = $testsByClass[$className]
+                $html += '&lt;div class=''test-class''&gt;'
+                $html += '&lt;div class=''test-class-header''&gt;📦 ' + $className + ' (' + $classTests.Count + ' tests)&lt;/div&gt;'
+                
+                foreach ($test in ($classTests | Sort-Object testName)) {
+                    $methodName = ($test.testName -split '\.')[-1]
+                    $outcome = $test.outcome.ToLower()
+                    $duration = if($test.duration) { $test.duration } else { '0ms' }
+                    
+                    $html += '&lt;div class=''test-method ' + $outcome + '''&gt;'
+                    $html += '&lt;div class=''test-name''&gt;' + $methodName + '&lt;/div&gt;'
+                    $html += '&lt;div class=''test-duration''&gt;' + $duration + '&lt;/div&gt;'
+                    
+                    if ($test.Output -and $test.Output.ErrorInfo) {
+                        $errorMsg = $test.Output.ErrorInfo.Message
+                        if ($errorMsg) {
+                            $html += '&lt;div class=''error-message''&gt;' + [System.Web.HttpUtility]::HtmlEncode($errorMsg) + '&lt;/div&gt;'
+                        }
+                    }
+                    
+                    $html += '&lt;/div&gt;'
+                }
+                
+                $html += '&lt;/div&gt;'
+            }
+            
+            $html += '&lt;/div&gt;'
+        }
+        
+        $html += @'
+        &lt;div class=''timestamp''&gt;
+            Report generated on '+ (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + @'
+        &lt;/div&gt;
+    &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+'@
+        
+        # Write both reports
+        $html | Out-File -FilePath $reportPath -Encoding UTF8
+        $html | Out-File -FilePath $timestampedReportPath -Encoding UTF8
+        
+        Write-Host '🔗 Integration test report generated: ' + $reportPath -ForegroundColor Green
+        Write-Host '📁 Timestamped report: ' + $timestampedReportPath -ForegroundColor Green
+        if (Test-Path '$(MSBuildProjectDirectory)\Coverage\Html\index.html') {
+            Write-Host '📊 Coverage report: $(MSBuildProjectDirectory)\Coverage\Html\index.html' -ForegroundColor Green
+        }
+        
+        # Open the report
+        try {
+            Start-Process $reportPath
+        } catch {
+            Write-Host 'Report saved but could not auto-open: ' + $reportPath -ForegroundColor Yellow
+        }
+      } else {
+        Write-Host 'No TRX files found in $(VSTestResultsDirectory)' -ForegroundColor Yellow
+      }
+    }&quot;" ContinueOnError="true" />
+  </Target>
 
 </Project>
