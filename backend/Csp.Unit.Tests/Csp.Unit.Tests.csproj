@@ -7,6 +7,14 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    
+    <!-- Auto-generate test reports -->
+    <VSTestLogger>trx;html;console</VSTestLogger>
+    <VSTestResultsDirectory>$(MSBuildProjectDirectory)\TestReports</VSTestResultsDirectory>
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>cobertura,opencover,lcov</CoverletOutputFormat>
+    <CoverletOutput>$(MSBuildProjectDirectory)\Coverage\</CoverletOutput>
+    <Exclude>[*.Tests]*,[xunit*]*</Exclude>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +23,9 @@
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <PackageReference Include="XunitXml.TestLogger" Version="3.0.78" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.0" />
+    <PackageReference Include="ReportGenerator" Version="5.2.4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,5 +35,193 @@
   <ItemGroup>
     <ProjectReference Include="..\Csp.Api\Csp.Api.csproj" />
   </ItemGroup>
+
+  <!-- Auto-create report directories -->
+  <Target Name="CreateReportDirectories" BeforeTargets="VSTest">
+    <MakeDir Directories="$(MSBuildProjectDirectory)\TestReports" />
+    <MakeDir Directories="$(MSBuildProjectDirectory)\Coverage" />
+  </Target>
+
+  <!-- Generate HTML coverage report after tests -->
+  <Target Name="GenerateCoverageReport" AfterTargets="VSTest" Condition="'$(CollectCoverage)' == 'true'">
+    <Message Text="Generating HTML coverage report..." Importance="high" />
+    <ItemGroup>
+      <CoverageFiles Include="$(CoverletOutput)coverage.cobertura.xml" />
+    </ItemGroup>
+    <Exec Command="reportgenerator -reports:@(CoverageFiles) -targetdir:$(MSBuildProjectDirectory)\Coverage\Html -reporttypes:Html" 
+          Condition="Exists('@(CoverageFiles)')" 
+          ContinueOnError="true" />
+  </Target>
+
+  <!-- Custom target to generate enhanced test report -->
+  <Target Name="GenerateTestReport" AfterTargets="VSTest">
+    <PropertyGroup>
+      <Timestamp>$([System.DateTime]::Now.ToString('yyyy-MM-dd_HH-mm-ss'))</Timestamp>
+    </PropertyGroup>
+    
+    <Message Text="Generating enhanced test report..." Importance="high" />
+    
+    <!-- Find the latest TRX file -->
+    <ItemGroup>
+      <TrxFiles Include="$(VSTestResultsDirectory)\*.trx" />
+    </ItemGroup>
+    
+    <!-- Generate HTML report using PowerShell -->
+    <Exec Command="powershell -ExecutionPolicy Bypass -Command &quot;&amp; { 
+      $reportPath = '$(MSBuildProjectDirectory)\TestReports\BookManagementTestReport_$(Timestamp).html'
+      $trxFiles = Get-ChildItem '$(VSTestResultsDirectory)\*.trx' | Sort-Object LastWriteTime -Descending
+      if ($trxFiles.Count -gt 0) {
+        $xmlPath = $trxFiles[0]
+        [xml]$testResults = Get-Content $xmlPath.FullName
+        $html = @'
+&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+    &lt;title&gt;Book Management Unit Test Report&lt;/title&gt;
+    &lt;style&gt;
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
+        .summary { display: flex; justify-content: space-around; margin: 20px 0; flex-wrap: wrap; }
+        .summary-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; text-align: center; min-width: 120px; margin: 5px; }
+        .summary-card.passed { background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); }
+        .summary-card.failed { background: linear-gradient(135deg, #f44336 0%, #da190b 100%); }
+        .summary-card.skipped { background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); }
+        .summary-card h3 { margin: 0 0 10px 0; font-size: 14px; }
+        .summary-card h2 { margin: 0; font-size: 24px; }
+        .test-details { margin-top: 30px; }
+        .test-class { margin: 20px 0; border: 1px solid #ddd; border-radius: 5px; overflow: hidden; }
+        .test-class-header { background-color: #3498db; color: white; padding: 15px; font-weight: bold; font-size: 16px; }
+        .test-method { padding: 12px 15px; border-bottom: 1px solid #eee; }
+        .test-method:last-child { border-bottom: none; }
+        .test-method.passed { background-color: #d4edda; border-left: 4px solid #28a745; }
+        .test-method.failed { background-color: #f8d7da; border-left: 4px solid #dc3545; }
+        .test-method.skipped { background-color: #fff3cd; border-left: 4px solid #ffc107; }
+        .timestamp { text-align: center; color: #666; margin-top: 30px; font-style: italic; }
+        .info-section { background-color: #e8f4fd; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .methodology { background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .methodology h3 { color: #495057; margin-top: 0; }
+        .methodology ul { margin: 10px 0; }
+        .links { text-align: center; margin: 20px 0; }
+        .links a { color: #3498db; text-decoration: none; margin: 0 15px; }
+        .links a:hover { text-decoration: underline; }
+    &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;div class=''container''&gt;
+        &lt;div class=''header''&gt;
+            &lt;h1&gt;📚 Book Management Unit Test Report&lt;/h1&gt;
+            &lt;h2&gt;Automated Test Results&lt;/h2&gt;
+        &lt;/div&gt;
+'@
+        
+        $counters = $testResults.TestRun.ResultSummary.Counters
+        $total = [int]$counters.total
+        $passed = [int]$counters.passed
+        $failed = [int]$counters.failed
+        $skipped = if($counters.skipped) { [int]$counters.skipped } else { 0 }
+        $passRate = if($total -gt 0) { [math]::Round(($passed / $total) * 100, 2) } else { 0 }
+        $duration = $testResults.TestRun.Times.finished - $testResults.TestRun.Times.start
+        
+        $html += @'
+        &lt;div class=''summary''&gt;
+            &lt;div class=''summary-card''&gt;
+                &lt;h3&gt;Total Tests&lt;/h3&gt;
+                &lt;h2&gt;'+ $total + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card passed''&gt;
+                &lt;h3&gt;Passed&lt;/h3&gt;
+                &lt;h2&gt;'+ $passed + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card failed''&gt;
+                &lt;h3&gt;Failed&lt;/h3&gt;
+                &lt;h2&gt;'+ $failed + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card skipped''&gt;
+                &lt;h3&gt;Skipped&lt;/h3&gt;
+                &lt;h2&gt;'+ $skipped + @'&lt;/h2&gt;
+            &lt;/div&gt;
+            &lt;div class=''summary-card''&gt;
+                &lt;h3&gt;Pass Rate&lt;/h3&gt;
+                &lt;h2&gt;'+ $passRate + @'%&lt;/h2&gt;
+            &lt;/div&gt;
+        &lt;/div&gt;
+        
+        &lt;div class=''info-section''&gt;
+            &lt;h3&gt;📊 Test Execution Info&lt;/h3&gt;
+            &lt;p&gt;&lt;strong&gt;Execution Time:&lt;/strong&gt; '+ $duration + @'&lt;/p&gt;
+            &lt;p&gt;&lt;strong&gt;Report Generated:&lt;/strong&gt; '+ (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + @'&lt;/p&gt;
+            &lt;p&gt;&lt;strong&gt;Coverage Report:&lt;/strong&gt; See Coverage/Html/index.html for detailed code coverage&lt;/p&gt;
+        &lt;/div&gt;
+        
+        &lt;div class=''links''&gt;
+            &lt;a href=''file:///$(MSBuildProjectDirectory.Replace('\'','/').Replace(':',''))/Coverage/Html/index.html''&gt;📈 Open Coverage Report&lt;/a&gt;
+            &lt;a href=''file:///$(MSBuildProjectDirectory.Replace('\'','/').Replace(':',''))/TestReports''&gt;📁 Test Reports Folder&lt;/a&gt;
+        &lt;/div&gt;
+        
+        &lt;div class=''methodology''&gt;
+            &lt;h3&gt;🧪 Testing Framework&lt;/h3&gt;
+            &lt;ul&gt;
+                &lt;li&gt;&lt;strong&gt;Framework:&lt;/strong&gt; xUnit with .NET 8.0&lt;/li&gt;
+                &lt;li&gt;&lt;strong&gt;Mocking:&lt;/strong&gt; Moq for dependency isolation&lt;/li&gt;
+                &lt;li&gt;&lt;strong&gt;Coverage:&lt;/strong&gt; Coverlet with multiple output formats&lt;/li&gt;
+                &lt;li&gt;&lt;strong&gt;Reporting:&lt;/strong&gt; Automated generation on every test run&lt;/li&gt;
+                &lt;li&gt;&lt;strong&gt;Patterns:&lt;/strong&gt; AAA pattern, Theory tests, Mock isolation&lt;/li&gt;
+            &lt;/ul&gt;
+        &lt;/div&gt;
+        
+        &lt;div class=''test-details''&gt;
+            &lt;h2&gt;📋 Detailed Test Results&lt;/h2&gt;
+'@
+        
+        $results = $testResults.TestRun.Results.UnitTestResult
+        $groupedResults = $results | Group-Object { ($_.testName -split '\.'')[0] }
+        
+        foreach ($group in $groupedResults) {
+            $className = $group.Name
+            $classTests = $group.Group
+            $classPassed = ($classTests | Where-Object { $_.outcome -eq 'Passed' }).Count
+            $classFailed = ($classTests | Where-Object { $_.outcome -eq 'Failed' }).Count
+            $classTotal = $classTests.Count
+            
+            $html += '&lt;div class=''test-class''&gt;&lt;div class=''test-class-header''&gt;' + $className + ' (' + $classPassed + '/' + $classTotal + ' passed)&lt;/div&gt;'
+            
+            foreach ($test in $classTests) {
+                $methodName = ($test.testName -split '\.')[-1]
+                $outcome = $test.outcome.ToLower()
+                $duration = if($test.duration) { $test.duration } else { 'N/A' }
+                
+                $html += '&lt;div class=''test-method ' + $outcome + '''&gt;'
+                $html += '&lt;strong&gt;' + $methodName + '&lt;/strong&gt; - ' + $outcome.ToUpper()
+                if ($duration -ne 'N/A') {
+                    $html += ' (Duration: ' + $duration + ')'
+                }
+                if ($test.output -and $test.output.ErrorInfo) {
+                    $html += '&lt;br&gt;&lt;small style=''color: #721c24;''&gt;Error: ' + $test.output.ErrorInfo.Message + '&lt;/small&gt;'
+                }
+                $html += '&lt;/div&gt;'
+            }
+            $html += '&lt;/div&gt;'
+        }
+        
+        $html += @'
+        &lt;/div&gt;
+        &lt;div class=''timestamp''&gt;
+            Report automatically generated on: '+ (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + @' | Framework: xUnit + .NET 8.0
+        &lt;/div&gt;
+    &lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+'@
+        
+        $html | Out-File -FilePath $reportPath -Encoding UTF8
+        Write-Host ''✅ HTML report generated: $reportPath'' -ForegroundColor Green
+        Write-Host ''📊 Coverage report: $(MSBuildProjectDirectory)\Coverage\Html\index.html'' -ForegroundColor Green
+      } else {
+        Write-Host ''❌ No TRX files found to generate report'' -ForegroundColor Red
+      }
+    }&quot;" 
+    ContinueOnError="true" />
+  </Target>
 
 </Project>
