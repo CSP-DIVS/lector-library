@@ -9,25 +9,31 @@ using Xunit;
 namespace Csp.E2E.Tests
 {
     /// <summary>
-    /// Simple E2E tests for user management functionality
+    /// E2E tests for user management functionality
     /// </summary>
-    public class SimpleUserManagementE2E : IDisposable
+    public class UserManagementE2E : IDisposable
     {
         private readonly IWebDriver driver;
         private readonly WebDriverWait wait;
         private readonly string baseUrl = Environment.GetEnvironmentVariable("CSP_WEB_URL") ?? "http://localhost:5173";
 
-        public SimpleUserManagementE2E()
+        public UserManagementE2E()
         {
             var options = new ChromeOptions();
-            var headedEnv = Environment.GetEnvironmentVariable("CSP_E2E_HEADED");
-            if (!string.Equals(headedEnv, "true", StringComparison.OrdinalIgnoreCase))
+            
+            // Show Chrome browser by default unless CSP_E2E_HEADLESS is set to "true"
+            var headlessEnv = Environment.GetEnvironmentVariable("CSP_E2E_HEADLESS");
+            if (string.Equals(headlessEnv, "true", StringComparison.OrdinalIgnoreCase))
             {
                 options.AddArgument("--headless=new");
             }
+            
             options.AddArgument("--window-size=1280,900");
+            options.AddArgument("--start-maximized");
             options.AddArgument("--no-sandbox");
             options.AddArgument("--disable-dev-shm-usage");
+            options.AddArgument("--disable-web-security");
+            
             driver = new ChromeDriver(options);
             wait = new WebDriverWait(new SystemClock(), driver, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(250));
         }
