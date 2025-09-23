@@ -12,4 +12,22 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore backend/Csp.Api
       - name: Test
-        run: dotnet test --no-build --verbosity normal || true  # replace with real tests later
+        uses: nick-invision/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: dotnet test --no-build --verbosity normal
+      - name: Create Jira Issue on Failure
+        if: failure()
+        uses: atlassian/gajira-create@v3
+        with:
+          project: LMS
+          issuetype: Bug
+          summary: "CI/CD pipeline failed for ${{ github.repository }} on ${{ github.ref }}"
+          description: |
+            The pipeline failed at ${{ github.workflow }}.
+            See details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
