@@ -3,22 +3,22 @@
 ## Prerequisites
 
 1. **Azure Account**: Ensure you have an active Azure subscription
-2. **Azure App Service**: Web app named "lms" should be created
-3. **Azure Database for MySQL**: Server "lms-server.mysql.database.azure.com" with database "lms-database"
+2. **Azure App Service**: Web app named "lector-lms" should be created
+3. **Azure Database for MySQL**: Server "lector-lms-server.mysql.database.azure.com" with database "lector-lms-database"
 4. **GitHub Repository**: This code should be in a GitHub repository
 
 ## Setup Steps
 
 ### 1. Configure Azure App Service
 
-1. Go to Azure Portal → App Services → lms-cyf6d5f2fqhvf7b3
+1. Go to Azure Portal → App Services → lector-lms-bpb2b4hzeqaqdth5
 2. Under **Configuration** → **Application settings**, add:
    - `JWT_SECRET_KEY`: A secure random string (e.g., generate a 256-bit key)
    - `ASPNETCORE_ENVIRONMENT`: `Production`
 
 ### 2. Get Publish Profile
 
-1. In Azure Portal → App Services → lms-cyf6d5f2fqhvf7b3
+1. In Azure Portal → App Services → lector-lms-bpb2b4hzeqaqdth5
 2. Click **Get publish profile** to download the .publishsettings file
 3. Copy the entire content of this file
 
@@ -32,10 +32,10 @@
 ### 4. Database Configuration
 
 The application is configured to connect to:
-- **Server**: lms-server.mysql.database.azure.com
-- **Database**: lms-database
-- **User**: epxewfunhy
-- **Password**: JpkHwYqgSCAI2$lr
+- **Server**: lector-lms-server.mysql.database.azure.com
+- **Database**: lector-lms-database
+- **User**: bwqwxjamnf
+- **Password**: WiIPxDf$$vKWvowD
 
 Make sure your MySQL server allows connections from Azure App Services.
 
@@ -65,9 +65,9 @@ npm run dev
 
 ## Production URLs
 
-- **App URL**: https://lms-cyf6d5f2fqhvf7b3.southindia-01.azurewebsites.net
-- **API Health Check**: https://lms-cyf6d5f2fqhvf7b3.southindia-01.azurewebsites.net/api/health/db
-- **Swagger** (in development): https://lms-cyf6d5f2fqhvf7b3.southindia-01.azurewebsites.net/swagger
+- **App URL**: https://lector-lms-bpb2b4hzeqaqdth5.southindia-01.azurewebsites.net
+- **API Health Check**: https://lector-lms-bpb2b4hzeqaqdth5.southindia-01.azurewebsites.net/api/health/db
+- **Swagger** (in development): https://lector-lms-bpb2b4hzeqaqdth5.southindia-01.azurewebsites.net/swagger
 
 ## Troubleshooting
 
@@ -93,8 +93,8 @@ npm run dev
 ### Logs
 
 View application logs in Azure Portal:
-1. App Services → lms-cyf6d5f2fqhvf7b3 → Log stream
-2. Or download logs from App Services → lms-cyf6d5f2fqhvf7b3 → Advanced Tools → Kudu
+1. App Services → lector-lms → Log stream
+2. Or download logs from App Services → lector-lms → Advanced Tools → Kudu
 
 ## Environment Variables
 

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: lms
+  AZURE_WEBAPP_NAME: lector-lms
   AZURE_WEBAPP_PACKAGE_PATH: './backend/Csp.Api'
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '20'
