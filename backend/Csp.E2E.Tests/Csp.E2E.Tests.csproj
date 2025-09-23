@@ -23,4 +23,21 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Configure automatic HTML test report generation -->
+  <PropertyGroup>
+    <VSTestResultsDirectory>$(MSBuildProjectDirectory)\TestResults</VSTestResultsDirectory>
+    <VSTestLogger>html</VSTestLogger>
+  </PropertyGroup>
+
+  <!-- Ensure TestResults directory exists -->
+  <Target Name="CreateTestResultsDirectory" BeforeTargets="VSTest">
+    <MakeDir Directories="$(VSTestResultsDirectory)" Condition="!Exists('$(VSTestResultsDirectory)')" />
+  </Target>
+
+  <!-- Display test results location after tests complete -->
+  <Target Name="ShowTestResultsLocation" AfterTargets="VSTest">
+    <Message Text="HTML test results generated in: $(VSTestResultsDirectory)" Importance="high" />
+    <Message Text="View the latest test report in your browser!" Importance="high" />
+  </Target>
+
 </Project>
