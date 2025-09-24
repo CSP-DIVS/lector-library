@@ -19,6 +19,13 @@ jobs:
           command: dotnet test --no-build --verbosity normal
       - name: Force fail for test
         run: exit 1
+      - name: Jira Login
+        if: always()
+        uses: atlassian/gajira-login@v3
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
       - name: Create Jira Issue on Failure
         if: failure()
         uses: atlassian/gajira-create@v3
