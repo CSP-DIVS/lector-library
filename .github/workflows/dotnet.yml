@@ -17,6 +17,8 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: dotnet test --no-build --verbosity normal
+      - name: Force fail for test
+        run: exit 1
       - name: Create Jira Issue on Failure
         if: failure()
         uses: atlassian/gajira-create@v3
