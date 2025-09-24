@@ -1,4 +1,0 @@
-jira:
-  site: ${{ secrets.JIRA_BASE_URL }}
-  user: ${{ secrets.JIRA_USER_EMAIL }}
-  token: ${{ secrets.JIRA_API_TOKEN }}
