@@ -19,6 +19,7 @@ jobs:
           command: dotnet test --no-build --verbosity normal
       - name: Force fail for test
         run: exit 1
+        continue-on-error: true
       - name: Create Jira Issue on Failure
         if: failure()
         uses: atlassian/gajira-create@v3
