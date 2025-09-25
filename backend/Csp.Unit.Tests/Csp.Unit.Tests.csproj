@@ -6,6 +6,8 @@
     <IsTestProject>true</IsTestProject>
     <VSTestLogger>trx</VSTestLogger>
     <VSTestResultsDirectory>TestReport</VSTestResultsDirectory>
+    <!-- Force continue on error for test projects -->
+    <VSTestTreatNoTestsAsError>false</VSTestTreatNoTestsAsError>
   </PropertyGroup>  
 
   <ItemGroup>
@@ -19,10 +21,14 @@
     <ProjectReference Include="..\Csp.Api\Csp.Api.csproj" />
   </ItemGroup>
 
-  <Target Name="GenerateTestReports" AfterTargets="VSTest">
-    <Message Text="Generating simple HTML test report..." Importance="high" />
-    <MakeDir Directories="TestReport" Condition="!Exists('TestReport')" />
-    <Exec Command="powershell -ExecutionPolicy Bypass -File SimpleTestReport.ps1" ContinueOnError="true" />
+  <!-- Target that always generates HTML report after VSTest completes -->
+  <Target Name="GenerateTestReport" AfterTargets="VSTest">
+    <Message Text="=== GENERATING FRESH HTML TEST REPORT ===" Importance="high" />
+    <Exec Command="powershell -ExecutionPolicy Bypass -File &quot;MinimalTestReport.ps1&quot;" 
+          WorkingDirectory="$(MSBuildProjectDirectory)" 
+          ContinueOnError="true" 
+          IgnoreExitCode="true" />
+    <Message Text="=== HTML TEST REPORT GENERATED ===" Importance="high" />
   </Target>
 
 </Project> 
