@@ -43,6 +43,7 @@ jobs:
     # Copy frontend build to backend wwwroot
     - name: Copy frontend to backend
       run: |
+        rm -rf backend/Csp.Api/wwwroot
         mkdir -p backend/Csp.Api/wwwroot
         cp -r frontend/csp-web/dist/* backend/Csp.Api/wwwroot/
 
