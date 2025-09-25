@@ -78,6 +78,38 @@ namespace Csp.Api.Services
                     await using var auditCmd = new MySqlCommand(createAuditLogSql, conn);
                     await auditCmd.ExecuteNonQueryAsync();
 
+                    var createBooksSql = @"
+                        CREATE TABLE IF NOT EXISTS books (
+                            Id INT AUTO_INCREMENT PRIMARY KEY,
+                            Title VARCHAR(255) NOT NULL,
+                            Author VARCHAR(255) NOT NULL,
+                            Isbn VARCHAR(20) UNIQUE NOT NULL,
+                            Category VARCHAR(100) NOT NULL,
+                            PublishedYear INT NOT NULL,
+                            IsActive TINYINT(1) NOT NULL DEFAULT 1,
+                            CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            CreatedBy INT NOT NULL,
+                            UpdatedBy INT NOT NULL,
+                            FOREIGN KEY (CreatedBy) REFERENCES users(Id),
+                            FOREIGN KEY (UpdatedBy) REFERENCES users(Id)
+                        )";
+                    await using var booksCmd = new MySqlCommand(createBooksSql, conn);
+                    await booksCmd.ExecuteNonQueryAsync();
+
+                    var createBookInventorySql = @"
+                        CREATE TABLE IF NOT EXISTS book_inventory (
+                            Id INT AUTO_INCREMENT PRIMARY KEY,
+                            BookId INT NOT NULL,
+                            TotalCopies INT NOT NULL DEFAULT 1,
+                            AvailableCopies INT NOT NULL DEFAULT 1,
+                            CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            FOREIGN KEY (BookId) REFERENCES books(Id) ON DELETE CASCADE
+                        )";
+                    await using var inventoryCmd = new MySqlCommand(createBookInventorySql, conn);
+                    await inventoryCmd.ExecuteNonQueryAsync();
+
                     var countUsersSql = "SELECT COUNT(*) FROM users";
                     await using var countCmd = new MySqlCommand(countUsersSql, conn);
                     var totalUsers = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
