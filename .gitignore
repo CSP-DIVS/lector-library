@@ -1,3 +1,9 @@
+backend/Csp.Api/_site
+backend/Csp.Api/api
+_site
+docs
+toc.yml
+
 user_stories/
 codefetch/
 plan.md
