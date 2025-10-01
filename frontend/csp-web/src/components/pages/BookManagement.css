@@ -4,7 +4,10 @@
   width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
-  padding: 0 1rem;.books-grid {
+  padding: 0 1rem;
+}
+
+.books-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
@@ -12,7 +15,9 @@
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
-}.page-header {
+}
+
+.page-header {
   margin-bottom: 32px;
 }
 
@@ -58,22 +63,20 @@
   min-height: 50px;
   width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
 .search-filters {
   display: flex;
-  gap: 12px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
+  align-items: center;
+  gap: 16px;
+  flex: 1 1 auto; /* Allow container to grow and shrink */
+  flex-wrap: wrap;
 }
 
-.search-box {
-  flex: 1;
-  max-width: 400px;
-  min-width: 200px;
-  overflow: hidden;
+.search-input-container {
+  position: relative;
+  flex: 1 1 300px; /* Allow it to grow/shrink from a 300px base */
+  /* min-width: 250px; <-- ★★★ THIS LINE WAS THE PROBLEM AND HAS BEEN REMOVED ★★★ */
 }
 
 .search-input {
@@ -90,6 +93,19 @@
   color: var(--color-text-secondary);
 }
 
+.search-spinner {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
 .genre-filter {
   padding: 12px 16px;
   border: 1px solid var(--color-border);
@@ -98,11 +114,13 @@
   color: var(--color-text);
   cursor: pointer;
   min-width: 150px;
+  flex-shrink: 0; /* Prevent the dropdown from shrinking */
 }
 
 .toolbar-actions {
   display: flex;
   gap: 12px;
+  flex-shrink: 0; /* Prevent the button from shrinking */
 }
 
 .btn {
@@ -323,58 +341,7 @@
   max-width: 400px;
 }
 
-/* Responsive design */
-@media (max-width: 1200px) {
-  .book-management-page {
-    padding: 0 0.75rem;
-    max-width: none;
-  }
-  
-  .management-toolbar {
-    gap: 12px;
-  }
-  
-  .toolbar-actions .btn {
-    padding: 10px 16px;
-    font-size: 0.85rem;
-  }
-}
-
-@media (max-width: 900px) {
-  .book-management-page {
-    padding: 0 0.5rem;
-  }
-  
-  .management-toolbar {
-    gap: 10px;
-  }
-}
-
-@media (max-width: 1024px) {
-  .management-toolbar {
-    gap: 12px;
-  }
-  
-  .search-filters {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  
-  .search-box {
-    min-width: 250px;
-  }
-  
-  .toolbar-actions .btn {
-    padding: 8px 12px;
-    font-size: 0.8rem;
-  }
-}
-
 @media (max-width: 768px) {
-  .book-management-page {
-    padding: 1rem;
-  }
-  
   .management-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -384,10 +351,12 @@
   .search-filters {
     flex-direction: column;
     gap: 12px;
+    width: 100%;
   }
   
-  .search-box {
+  .search-input-container {
     max-width: none;
+    min-width: auto;
   }
   
   .toolbar-actions {
@@ -399,71 +368,17 @@
   .toolbar-actions .btn {
     width: 100%;
     justify-content: center;
-    padding: 14px 24px;
-    font-size: 0.95rem;
-    min-height: 48px;
   }
   
   .books-grid {
     grid-template-columns: 1fr;
   }
-  
-  .book-header {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .book-title {
-    margin-right: 0;
-  }
-  
-  .staff-actions {
-    flex-direction: column;
-  }
 }
 
-@media (max-width: 480px) {
-  .book-management-page {
-    padding: 0.5rem;
-  }
-  
-  .page-header h1 {
-    font-size: 1.5rem;
-  }
-  
-  .page-subtitle {
-    font-size: 0.9rem;
-  }
-  
-  .management-toolbar {
-    gap: 12px;
-  }
-  
-  .toolbar-actions .btn {
-    padding: 12px 20px;
-    font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: visible;
-  }
-}
-
-/* Inactive book styles */
 .inactive-book {
   opacity: 0.7;
   background-color: #f8f9fa;
   border: 1px solid #dee2e6;
-}
-
-.inactive-book .book-title {
-  color: #6c757d;
-}
-
-.inactive-book .book-author {
-  color: #adb5bd;
-}
-
-.inactive-book .book-info {
-  color: #6c757d;
 }
 
 .status-badges {
@@ -478,4 +393,10 @@
   color: white;
   font-size: 0.7rem;
   padding: 2px 6px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

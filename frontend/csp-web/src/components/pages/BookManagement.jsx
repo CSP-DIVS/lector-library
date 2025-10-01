@@ -1,120 +1,168 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import './BookManagement.css';
 import AddBookModal from '../ui/AddBookModal';
 import EditBookModal from '../ui/EditBookModal';
 import api from '../../lib/api';
 
+/**
+ * @file BookManagement.jsx
+ * @description This component provides a comprehensive interface for managing the library's book collection.
+ * It allows users to view, search, and filter books. Authorized users (Librarians, Administrators)
+ * can also add, edit, update the status of, and delete books.
+ * @param {{ user: { role: string } }} props - The component props.
+ * @param {object} props.user - The currently logged-in user object, used to determine permissions.
+ */
 const BookManagement = ({ user }) => {
+  // State for book data and loading status
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [showEditForm, setShowEditForm] = useState(false);
-  const [editingBook, setEditingBook] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterGenre, setFilterGenre] = useState('all');
+  const [isSearching, setIsSearching] = useState(false);
+
+  // State for handling UI elements like modals and notifications
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingBook, setEditingBook] = useState(null); // Holds the book object for the edit modal
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const canManageBooks = user.role === 'Administrator' || user.role === 'Librarian';
+  // State for search and filter inputs
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
 
-  useEffect(() => {
-    fetchBooks();
-  }, []);
+  // Memoized derived state for user permissions
+  const canManageBooks = useMemo(() => 
+    user.role === 'Administrator' || user.role === 'Librarian',
+    [user.role]
+  );
 
-  const fetchBooks = async () => {
+  // Memoized list of unique categories for the filter dropdown
+  const categories = useMemo(() => [
+    ...new Set(books.map(book => book.category))
+  ], [books]);
+
+  /**
+   * Fetches books from the API based on the current search and filter state.
+   * Wrapped in useCallback to prevent re-creation on every render, optimizing performance.
+   */
+  const fetchBooks = useCallback(async (searchQuery, categoryQuery) => {
+    // Use passed arguments or state
+    const currentSearch = searchQuery !== undefined ? searchQuery : searchTerm;
+    const currentCategory = categoryQuery !== undefined ? categoryQuery : filterCategory;
+
+    setIsSearching(true);
+    if (books.length === 0) setLoading(true);
+
     try {
-      setLoading(true);
       const response = await api.get('/books', {
         params: {
-          search: searchTerm || undefined,
-          category: filterGenre !== 'all' ? filterGenre : undefined,
+          search: currentSearch || undefined,
+          category: currentCategory !== 'all' ? currentCategory : undefined,
           page: 1,
-          pageSize: 100
+          pageSize: 100,
         }
       });
       setBooks(response.data.items || []);
     } catch (error) {
       console.error('Error fetching books:', error);
-      setMessage({ type: 'error', text: 'Failed to fetch books' });
+      setMessage({ type: 'error', text: 'Failed to fetch books. Please try again.' });
     } finally {
       setLoading(false);
+      setIsSearching(false);
     }
-  };
+  }, [books.length, searchTerm, filterCategory]);
 
-  const filteredBooks = books.filter(book => {
-    const matchesSearch = book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         book.author.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         book.isbn.includes(searchTerm);
-    const matchesGenre = filterGenre === 'all' || book.category === filterGenre;
-    return matchesSearch && matchesGenre;
-  });
 
-  const genres = [...new Set(books.map(book => book.category))];
+  /**
+   * Effect to trigger a debounced fetch when search or filter criteria change.
+   */
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      // Avoid fetching on initial mount if searchTerm is empty
+      if (searchTerm === '' && filterCategory === 'all' && books.length > 0) {
+        // If filters are cleared, we might want to refetch or just clear search state
+        return;
+      }
+      fetchBooks(searchTerm, filterCategory);
+    }, 500); // Debounce time
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm, filterCategory, fetchBooks, books.length]);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchBooks();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Runs only once on mount
+
+
+  // --- CRUD Handlers ---
 
   const handleAddBook = async (bookData) => {
     try {
       await api.post('/books', bookData);
-      setMessage({ type: 'success', text: 'Book added successfully' });
-      await fetchBooks();
+      setMessage({ type: 'success', text: 'Book added successfully.' });
+      fetchBooks(); // Refresh book list
+      setShowAddModal(false);
     } catch (error) {
       console.error('Error adding book:', error);
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to add book' });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to add book.' });
     }
   };
 
   const handleEditBook = async (bookId, bookData) => {
     try {
       await api.put(`/books/${bookId}`, bookData);
-      setMessage({ type: 'success', text: 'Book updated successfully' });
-      await fetchBooks();
+      setMessage({ type: 'success', text: 'Book updated successfully.' });
+      fetchBooks();
+      closeEditModal();
     } catch (error) {
       console.error('Error updating book:', error);
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to update book' });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to update book.' });
     }
   };
 
-  const handleToggleBookStatus = async (bookId, isActive) => {
+  const handleToggleBookStatus = async (bookId, newStatus) => {
     try {
-      await api.put(`/books/${bookId}/status`, isActive);
-      setMessage({ type: 'success', text: isActive ? 'Book reactivated successfully' : 'Book deactivated successfully' });
-      await fetchBooks();
+      await api.put(`/books/${bookId}/status`, { isActive: newStatus });
+      setMessage({ type: 'success', text: `Book ${newStatus ? 'reactivated' : 'deactivated'} successfully.` });
+      fetchBooks();
     } catch (error) {
       console.error('Error updating book status:', error);
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to update book status' });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to update status.' });
     }
   };
 
   const handleDeleteBook = async (bookId) => {
-    if (!window.confirm('Are you sure you want to delete this book?')) {
+    if (!window.confirm('Are you sure you want to delete this book? This action is permanent.')) {
       return;
     }
-
     try {
       await api.delete(`/books/${bookId}`);
-      setMessage({ type: 'success', text: 'Book deleted successfully' });
-      await fetchBooks();
+      setMessage({ type: 'success', text: 'Book deleted successfully.' });
+      fetchBooks();
     } catch (error) {
       console.error('Error deleting book:', error);
-      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to delete book' });
+      setMessage({ type: 'error', text: error.response?.data?.message || 'Failed to delete book.' });
     }
   };
 
+  // --- Modal Handlers ---
+
   const openEditModal = (book) => {
     setEditingBook(book);
-    setShowEditForm(true);
+    setShowEditModal(true);
   };
 
   const closeEditModal = () => {
     setEditingBook(null);
-    setShowEditForm(false);
+    setShowEditModal(false);
   };
+  
+  const handleSearchChange = useCallback((e) => {
+    setSearchTerm(e.target.value);
+  }, []);
 
-  // Auto-refresh when search or filter changes
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchBooks();
-    }, 300);
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, filterGenre]);
 
   if (loading) {
     return (
@@ -130,10 +178,7 @@ const BookManagement = ({ user }) => {
       <div className="page-header">
         <h1>Book Management</h1>
         <p className="page-subtitle">
-          {canManageBooks 
-            ? 'Manage the library book collection and inventory'
-            : 'Browse the library book collection'
-          }
+          {canManageBooks ? 'Manage the library book collection and inventory' : 'Browse the library book collection'}
         </p>
       </div>
 
@@ -146,33 +191,31 @@ const BookManagement = ({ user }) => {
 
       <div className="management-toolbar">
         <div className="search-filters">
-          <div className="search-box">
+          <div className="search-input-container">
             <input
               type="text"
-              placeholder="Search books by title, author, or ISBN..."
+              placeholder="Search by title, author, or ISBN..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={handleSearchChange}
               className="search-input"
             />
+            {isSearching && <div className="search-spinner"></div>}
           </div>
           <select
-            value={filterGenre}
-            onChange={(e) => setFilterGenre(e.target.value)}
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
             className="genre-filter"
           >
-            <option value="all">All Genres</option>
-            {genres.map(genre => (
-              <option key={genre} value={genre}>{genre}</option>
+            <option value="all">. All  Categories</option>
+            {categories.map(category => (
+              <option key={category} value={category}>{category}</option>
             ))}
           </select>
         </div>
         
         {canManageBooks && (
           <div className="toolbar-actions">
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn btn-primary"
-            >
+            <button onClick={() => setShowAddModal(true)} className="btn btn-primary">
               + Add New Book
             </button>
           </div>
@@ -180,22 +223,15 @@ const BookManagement = ({ user }) => {
       </div>
 
       <div className="books-grid">
-        {filteredBooks.map(book => (
+        {books.map(book => (
           <div key={book.id} className={`book-card ${!book.isActive ? 'inactive-book' : ''}`}>
             <div className="book-header">
               <h3 className="book-title">{book.title}</h3>
               <div className="status-badges">
-                <span className={`status-badge ${book.status.toLowerCase()}`}>
-                  {book.status}
-                </span>
-                {!book.isActive && (
-                  <span className="status-badge inactive">
-                    Inactive
-                  </span>
-                )}
+                <span className={`status-badge ${book.status.toLowerCase()}`}>{book.status}</span>
+                {!book.isActive && <span className="status-badge inactive">Inactive</span>}
               </div>
             </div>
-            
             <div className="book-details">
               <p className="book-author">by {book.author}</p>
               <p className="book-info">
@@ -203,47 +239,29 @@ const BookManagement = ({ user }) => {
                 <span>Category: {book.category}</span>
                 <span>Published: {book.publishedYear}</span>
               </p>
-              
               <div className="availability-info">
                 <div className="copies-info">
-                  <span className="available-copies">
-                    {book.availableCopies} available
-                  </span>
-                  <span className="total-copies">
-                    of {book.totalCopies} total
-                  </span>
+                  <span className="available-copies">{book.availableCopies} available</span>
+                  <span className="total-copies">of {book.totalCopies} total</span>
                 </div>
-                
                 <div className="availability-bar">
                   <div 
                     className="availability-fill"
-                    style={{ 
-                      width: `${(book.availableCopies / book.totalCopies) * 100}%` 
-                    }}
+                    style={{ width: `${book.totalCopies > 0 ? (book.availableCopies / book.totalCopies) * 100 : 0}%` }}
                   ></div>
                 </div>
               </div>
             </div>
-
             <div className="book-actions">
               {user.role === 'Member' ? (
                 <div className="member-actions">
-                  <button 
-                    className="btn btn-secondary"
-                    disabled={book.availableCopies === 0}
-                  >
+                  <button className="btn btn-secondary" disabled={book.availableCopies === 0}>
                     {book.availableCopies > 0 ? 'Reserve' : 'Unavailable'}
                   </button>
                 </div>
               ) : (
                 <div className="staff-actions">
-                  <button 
-                    className="btn btn-outline"
-                    onClick={() => openEditModal(book)}
-                  >
-                    Edit
-                  </button>
-                  <button className="btn btn-outline">Check Out</button>
+                  <button className="btn btn-outline" onClick={() => openEditModal(book)}>Edit</button>
                   {canManageBooks && (
                     <>
                       <button 
@@ -252,12 +270,7 @@ const BookManagement = ({ user }) => {
                       >
                         {book.isActive ? 'Deactivate' : 'Reactivate'}
                       </button>
-                      <button 
-                        className="btn btn-danger"
-                        onClick={() => handleDeleteBook(book.id)}
-                      >
-                        Delete
-                      </button>
+                      <button className="btn btn-danger" onClick={() => handleDeleteBook(book.id)}>Delete</button>
                     </>
                   )}
                 </div>
@@ -267,7 +280,7 @@ const BookManagement = ({ user }) => {
         ))}
       </div>
 
-      {filteredBooks.length === 0 && (
+      {books.length === 0 && !loading && (
         <div className="empty-state">
           <div className="empty-icon">📚</div>
           <h3>No books found</h3>
@@ -275,18 +288,8 @@ const BookManagement = ({ user }) => {
         </div>
       )}
 
-      <AddBookModal
-        isOpen={showAddForm}
-        onClose={() => setShowAddForm(false)}
-        onSubmit={handleAddBook}
-      />
-
-      <EditBookModal
-        isOpen={showEditForm}
-        onClose={closeEditModal}
-        onSubmit={handleEditBook}
-        book={editingBook}
-      />
+      <AddBookModal isOpen={showAddModal} onClose={() => setShowAddModal(false)} onSubmit={handleAddBook} />
+      <EditBookModal isOpen={showEditModal} onClose={closeEditModal} onSubmit={handleEditBook} book={editingBook} />
     </div>
   );
 };
