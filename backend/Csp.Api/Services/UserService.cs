@@ -393,6 +393,30 @@ namespace Csp.Api.Services
             return passwordHash == hash;
         }
 
+        private bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(email);
+                return addr.Address == email && email.Contains("@") && email.Contains(".");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsValidPassword(string password)
+        {
+            // Password complexity: at least one uppercase, one lowercase, one digit, and one special character
+            var hasUpper = password.Any(char.IsUpper);
+            var hasLower = password.Any(char.IsLower);
+            var hasDigit = password.Any(char.IsDigit);
+            var hasSpecial = password.Any(ch => !char.IsLetterOrDigit(ch));
+            
+            return hasUpper && hasLower && hasDigit && hasSpecial;
+        }
+
         public async Task<UserDto?> GetCurrentUserAsync(int id)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -439,6 +463,14 @@ namespace Csp.Api.Services
 
         public async Task<bool> UpdateMyProfileAsync(int id, UpdateProfileRequest request)
         {
+            // Validate email format
+            if (string.IsNullOrWhiteSpace(request.Email) || !IsValidEmail(request.Email))
+                return false;
+            
+            // Validate username
+            if (string.IsNullOrWhiteSpace(request.Username))
+                return false;
+
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
@@ -461,7 +493,12 @@ namespace Csp.Api.Services
 
         public async Task<bool> ChangePasswordAsync(int id, ChangePasswordRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8) return false;
+            // Validate password length and complexity
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || 
+                request.NewPassword.Length < 8 || 
+                !IsValidPassword(request.NewPassword))
+                return false;
+                
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
