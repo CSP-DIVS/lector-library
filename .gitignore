@@ -746,3 +746,11 @@ FodyWeavers.xsd
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio,visualstudiocode,windows,macos,linux,node,jetbrains,Dotnet
 user_stories/*
+
+### DocFx ###
+# DocFx generated files
+_site/
+api/
+obj/
+.manifest
+.publish

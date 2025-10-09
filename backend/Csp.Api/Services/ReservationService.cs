@@ -5,23 +5,83 @@ using MySql.Data.MySqlClient;
 
 namespace Csp.Api.Services
 {
+    /// <summary>
+    /// Interface defining the contract for book reservation operations.
+    /// </summary>
     public interface IReservationService
     {
+        /// <summary>
+        /// Creates a new reservation for a book.
+        /// </summary>
+        /// <param name="request">The reservation request details.</param>
+        /// <returns>A response indicating success or failure with reservation details.</returns>
         Task<ReservationResponse> CreateReservationAsync(CreateReservationRequest request);
+
+        /// <summary>
+        /// Cancels an existing reservation.
+        /// </summary>
+        /// <param name="reservationId">The ID of the reservation to cancel.</param>
+        /// <param name="userId">The ID of the user requesting cancellation for authorization.</param>
+        /// <returns>A response indicating success or failure.</returns>
         Task<ReservationResponse> CancelReservationAsync(int reservationId, int userId);
+
+        /// <summary>
+        /// Fulfills a reservation by converting it to a lending transaction.
+        /// </summary>
+        /// <param name="request">The fulfill reservation request details.</param>
+        /// <returns>A response indicating success or failure with updated details.</returns>
         Task<ReservationResponse> FulfillReservationAsync(FulfillReservationRequest request);
+
+        /// <summary>
+        /// Retrieves a paginated list of reservations for a specific user.
+        /// </summary>
+        /// <param name="userId">The user ID to filter reservations.</param>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing user's reservations.</returns>
         Task<PagedReservationsResponse> GetUserReservationsAsync(int userId, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves a paginated list of all reservations in the system.
+        /// </summary>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing all reservations.</returns>
         Task<PagedReservationsResponse> GetAllReservationsAsync(int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves detailed information about a specific reservation.
+        /// </summary>
+        /// <param name="id">The reservation ID.</param>
+        /// <returns>The reservation details, or null if not found.</returns>
         Task<ReservationDto?> GetReservationByIdAsync(int id);
+
+        /// <summary>
+        /// Initializes the reservation database tables.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         Task InitializeReservationTablesAsync();
     }
 
+    /// <summary>
+    /// Service implementation for managing book reservation operations.
+    /// Handles creating, canceling, fulfilling reservations, and maintains the reservation queue.
+    /// </summary>
     public class ReservationService : IReservationService
     {
         private readonly IConfiguration _configuration;
         private readonly string _connectionString;
-        private const int RESERVATION_EXPIRY_DAYS = 3; // Days to pick up after becoming available
 
+        /// <summary>
+        /// The number of days a user has to pick up a book after it becomes available.
+        /// </summary>
+        private const int RESERVATION_EXPIRY_DAYS = 3;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ReservationService"/> class.
+        /// </summary>
+        /// <param name="configuration">The application configuration for database connection.</param>
+        /// <exception cref="InvalidOperationException">Thrown when connection string is not found.</exception>
         public ReservationService(IConfiguration configuration)
         {
             _configuration = configuration;
@@ -30,6 +90,10 @@ namespace Csp.Api.Services
                                  ?? throw new InvalidOperationException("Connection string not found");
         }
 
+        /// <summary>
+        /// Initializes the reservation database tables by executing the create table script.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task InitializeReservationTablesAsync()
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -41,6 +105,13 @@ namespace Csp.Api.Services
             await cmd.ExecuteNonQueryAsync();
         }
 
+        /// <summary>
+        /// Creates a new book reservation for a user.
+        /// Validates book existence, checks for existing loans and reservations, 
+        /// and determines queue position based on available copies.
+        /// </summary>
+        /// <param name="request">The reservation request containing book ID and user ID.</param>
+        /// <returns>A response indicating success or failure with the created reservation details.</returns>
         public async Task<ReservationResponse> CreateReservationAsync(CreateReservationRequest request)
         {
             if (request.BookId <= 0 || request.UserId <= 0)
@@ -149,6 +220,13 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Cancels an existing reservation and updates the queue positions for remaining reservations.
+        /// Validates user ownership before allowing cancellation.
+        /// </summary>
+        /// <param name="reservationId">The ID of the reservation to cancel.</param>
+        /// <param name="userId">The ID of the user requesting cancellation for ownership verification.</param>
+        /// <returns>A response indicating success or failure of the cancellation.</returns>
         public async Task<ReservationResponse> CancelReservationAsync(int reservationId, int userId)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -240,6 +318,12 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Fulfills a reservation by converting it into an active lending transaction.
+        /// Creates a new loan record, decrements available copies, and updates the reservation status.
+        /// </summary>
+        /// <param name="request">The fulfill request containing reservation ID and loan duration.</param>
+        /// <returns>A response indicating success or failure with the updated reservation and lending details.</returns>
         public async Task<ReservationResponse> FulfillReservationAsync(FulfillReservationRequest request)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -346,6 +430,14 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of reservations for a specific user.
+        /// Includes book details and queue position information.
+        /// </summary>
+        /// <param name="userId">The user ID to filter reservations.</param>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing the user's reservation records with book information.</returns>
         public async Task<PagedReservationsResponse> GetUserReservationsAsync(int userId, int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -384,6 +476,13 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of all reservations in the system.
+        /// Includes book details, user information, and queue positions.
+        /// </summary>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing all reservation records with book and user information.</returns>
         public async Task<PagedReservationsResponse> GetAllReservationsAsync(int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -420,6 +519,12 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves detailed information about a specific reservation by ID.
+        /// Includes book details, user information, and queue position.
+        /// </summary>
+        /// <param name="id">The reservation ID.</param>
+        /// <returns>A reservation DTO with full details, or null if the record is not found.</returns>
         public async Task<ReservationDto?> GetReservationByIdAsync(int id)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -440,6 +545,12 @@ namespace Csp.Api.Services
             return null;
         }
 
+        /// <summary>
+        /// Maps a database reader row to a ReservationDto object.
+        /// Extracts all reservation details including book information, user details, and status information.
+        /// </summary>
+        /// <param name="reader">The MySQL data reader positioned at the current row.</param>
+        /// <returns>A populated ReservationDto object with all relevant reservation information.</returns>
         private ReservationDto MapReservationDto(MySqlDataReader reader)
         {
             return new ReservationDto
