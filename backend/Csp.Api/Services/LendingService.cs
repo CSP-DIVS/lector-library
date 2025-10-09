@@ -1,5 +1,6 @@
 using Csp.Api.Models;
 using Csp.Api.DTOs;
+using Csp.Api.Data;
 using MySql.Data.MySqlClient;
 
 namespace Csp.Api.Services
@@ -34,26 +35,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var createLendingsTableSql = @"
-                CREATE TABLE IF NOT EXISTS lendings (
-                    Id INT AUTO_INCREMENT PRIMARY KEY,
-                    BookId INT NOT NULL,
-                    UserId INT NOT NULL,
-                    BorrowDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    DueDate DATETIME NOT NULL,
-                    ReturnDate DATETIME NULL,
-                    Status VARCHAR(20) NOT NULL DEFAULT 'Active',
-                    FineAmount DECIMAL(10,2) NULL,
-                    FinePaid BOOLEAN NOT NULL DEFAULT FALSE,
-                    RenewalCount INT NOT NULL DEFAULT 0,
-                    MaxRenewals INT NOT NULL DEFAULT 2,
-                    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    FOREIGN KEY (BookId) REFERENCES books(Id),
-                    FOREIGN KEY (UserId) REFERENCES users(Id),
-                    INDEX idx_user_status (UserId, Status),
-                    INDEX idx_book_status (BookId, Status)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+            var createLendingsTableSql = SqlQueryLoader.LoadQuery("Lendings", "CreateLendingsTable");
 
             await using var cmd = new MySqlCommand(createLendingsTableSql, conn);
             await cmd.ExecuteNonQueryAsync();
@@ -77,11 +59,7 @@ namespace Csp.Api.Services
             try
             {
                 // Check if book exists and is active
-                var checkBookSql = @"
-                    SELECT b.Id, b.IsActive, bi.AvailableCopies 
-                    FROM books b
-                    LEFT JOIN book_inventory bi ON b.Id = bi.BookId
-                    WHERE b.Id = @BookId";
+                var checkBookSql = SqlQueryLoader.LoadQuery("Lendings", "CheckBookAvailability");
                 
                 await using var bookCmd = new MySqlCommand(checkBookSql, conn, transaction);
                 bookCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -123,9 +101,7 @@ namespace Csp.Api.Services
                 }
 
                 // Check if user already has an active loan for this book
-                var checkExistingLoanSql = @"
-                    SELECT COUNT(*) FROM lendings 
-                    WHERE BookId = @BookId AND UserId = @UserId AND Status = 'Active'";
+                var checkExistingLoanSql = SqlQueryLoader.LoadQuery("Lendings", "CheckExistingLoan");
                 
                 await using var checkLoanCmd = new MySqlCommand(checkExistingLoanSql, conn, transaction);
                 checkLoanCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -144,10 +120,7 @@ namespace Csp.Api.Services
 
                 // Create lending record
                 var dueDate = DateTime.UtcNow.AddDays(request.LoanDurationDays);
-                var insertLendingSql = @"
-                    INSERT INTO lendings (BookId, UserId, BorrowDate, DueDate, Status, RenewalCount, MaxRenewals)
-                    VALUES (@BookId, @UserId, @BorrowDate, @DueDate, 'Active', 0, 2);
-                    SELECT LAST_INSERT_ID();";
+                var insertLendingSql = SqlQueryLoader.LoadQuery("Lendings", "InsertLending");
                 
                 await using var lendingCmd = new MySqlCommand(insertLendingSql, conn, transaction);
                 lendingCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -158,10 +131,7 @@ namespace Csp.Api.Services
                 var lendingId = Convert.ToInt32(await lendingCmd.ExecuteScalarAsync());
 
                 // Update available copies
-                var updateInventorySql = @"
-                    UPDATE book_inventory 
-                    SET AvailableCopies = AvailableCopies - 1, UpdatedAt = @UpdatedAt
-                    WHERE BookId = @BookId";
+                var updateInventorySql = SqlQueryLoader.LoadQuery("Lendings", "DecrementAvailableCopies");
                 
                 await using var inventoryCmd = new MySqlCommand(updateInventorySql, conn, transaction);
                 inventoryCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -198,10 +168,7 @@ namespace Csp.Api.Services
             try
             {
                 // Get lending details
-                var getLendingSql = @"
-                    SELECT BookId, UserId, DueDate, Status 
-                    FROM lendings 
-                    WHERE Id = @LendingId";
+                var getLendingSql = SqlQueryLoader.LoadQuery("Lendings", "GetLendingForReturn");
                 
                 await using var lendingCmd = new MySqlCommand(getLendingSql, conn, transaction);
                 lendingCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -244,10 +211,7 @@ namespace Csp.Api.Services
                 }
 
                 // Update lending record
-                var updateLendingSql = @"
-                    UPDATE lendings 
-                    SET ReturnDate = @ReturnDate, Status = 'Returned', FineAmount = @FineAmount, UpdatedAt = @UpdatedAt
-                    WHERE Id = @LendingId";
+                var updateLendingSql = SqlQueryLoader.LoadQuery("Lendings", "UpdateLendingReturn");
                 
                 await using var updateCmd = new MySqlCommand(updateLendingSql, conn, transaction);
                 updateCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -257,10 +221,7 @@ namespace Csp.Api.Services
                 await updateCmd.ExecuteNonQueryAsync();
 
                 // Update available copies
-                var updateInventorySql = @"
-                    UPDATE book_inventory 
-                    SET AvailableCopies = AvailableCopies + 1, UpdatedAt = @UpdatedAt
-                    WHERE BookId = @BookId";
+                var updateInventorySql = SqlQueryLoader.LoadQuery("Lendings", "IncrementAvailableCopies");
                 
                 await using var inventoryCmd = new MySqlCommand(updateInventorySql, conn, transaction);
                 inventoryCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -299,10 +260,7 @@ namespace Csp.Api.Services
             try
             {
                 // Get lending details
-                var getLendingSql = @"
-                    SELECT BookId, UserId, DueDate, Status, RenewalCount, MaxRenewals 
-                    FROM lendings 
-                    WHERE Id = @LendingId";
+                var getLendingSql = SqlQueryLoader.LoadQuery("Lendings", "GetLendingForRenewal");
                 
                 await using var lendingCmd = new MySqlCommand(getLendingSql, conn, transaction);
                 lendingCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -359,9 +317,7 @@ namespace Csp.Api.Services
                 }
 
                 // Check if book has pending reservations
-                var checkReservationsSql = @"
-                    SELECT COUNT(*) FROM reservations 
-                    WHERE BookId = @BookId AND Status = 'Pending'";
+                var checkReservationsSql = SqlQueryLoader.LoadQuery("Lendings", "CheckPendingReservations");
                 
                 await using var reservationCmd = new MySqlCommand(checkReservationsSql, conn, transaction);
                 reservationCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -379,10 +335,7 @@ namespace Csp.Api.Services
 
                 // Renew the loan (extend by 14 days from current due date)
                 var newDueDate = currentDueDate.AddDays(14);
-                var updateLendingSql = @"
-                    UPDATE lendings 
-                    SET DueDate = @NewDueDate, RenewalCount = RenewalCount + 1, UpdatedAt = @UpdatedAt
-                    WHERE Id = @LendingId";
+                var updateLendingSql = SqlQueryLoader.LoadQuery("Lendings", "UpdateLendingRenewal");
                 
                 await using var updateCmd = new MySqlCommand(updateLendingSql, conn, transaction);
                 updateCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -416,21 +369,12 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var whereClause = userId.HasValue ? "AND l.UserId = @UserId" : "";
-            var sql = $@"
-                SELECT l.*, b.Title, b.Author, b.Isbn, u.Username, u.Email,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() THEN 1 ELSE 0 END as IsOverdue,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() THEN DATEDIFF(UTC_TIMESTAMP(), l.DueDate) ELSE 0 END as OverdueDays
-                FROM lendings l
-                INNER JOIN books b ON l.BookId = b.Id
-                INNER JOIN users u ON l.UserId = u.Id
-                WHERE l.Status IN ('Active', 'Overdue') {whereClause}
-                ORDER BY l.DueDate ASC
-                LIMIT @PageSize OFFSET @Offset";
-
-            var countSql = $@"
-                SELECT COUNT(*) FROM lendings l
-                WHERE l.Status IN ('Active', 'Overdue') {whereClause}";
+            // Load SQL query based on whether userId is provided
+            var queryName = userId.HasValue ? "GetActiveLoansWithUser" : "GetActiveLoans";
+            var countQueryName = userId.HasValue ? "CountActiveLoansWithUser" : "CountActiveLoans";
+            
+            var sql = SqlQueryLoader.LoadQuery("Lendings", queryName);
+            var countSql = SqlQueryLoader.LoadQuery("Lendings", countQueryName);
 
             var lendings = new List<LendingDto>();
             
@@ -469,20 +413,12 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var whereClause = userId.HasValue ? "AND l.UserId = @UserId" : "";
-            var sql = $@"
-                SELECT l.*, b.Title, b.Author, b.Isbn, u.Username, u.Email,
-                       0 as IsOverdue, 0 as OverdueDays
-                FROM lendings l
-                INNER JOIN books b ON l.BookId = b.Id
-                INNER JOIN users u ON l.UserId = u.Id
-                WHERE l.Status = 'Returned' {whereClause}
-                ORDER BY l.ReturnDate DESC
-                LIMIT @PageSize OFFSET @Offset";
-
-            var countSql = $@"
-                SELECT COUNT(*) FROM lendings l
-                WHERE l.Status = 'Returned' {whereClause}";
+            // Load SQL query based on whether userId is provided
+            var queryName = userId.HasValue ? "GetLoanHistoryWithUser" : "GetLoanHistory";
+            var countQueryName = userId.HasValue ? "CountLoanHistoryWithUser" : "CountLoanHistory";
+            
+            var sql = SqlQueryLoader.LoadQuery("Lendings", queryName);
+            var countSql = SqlQueryLoader.LoadQuery("Lendings", countQueryName);
 
             var lendings = new List<LendingDto>();
             
@@ -521,14 +457,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var sql = @"
-                SELECT l.*, b.Title, b.Author, b.Isbn, u.Username, u.Email,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() AND l.Status = 'Active' THEN 1 ELSE 0 END as IsOverdue,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() AND l.Status = 'Active' THEN DATEDIFF(UTC_TIMESTAMP(), l.DueDate) ELSE 0 END as OverdueDays
-                FROM lendings l
-                INNER JOIN books b ON l.BookId = b.Id
-                INNER JOIN users u ON l.UserId = u.Id
-                WHERE l.Id = @Id";
+            var sql = SqlQueryLoader.LoadQuery("Lendings", "GetLendingById");
 
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id);
