@@ -12,4 +12,4 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore backend/Csp.Api
       - name: Test
-        run: dotnet test --no-build --verbosity normal || true  # replace with real tests later
+        run: dotnet test backend/Csp.Unit.Tests --no-build --verbosity normal || true
