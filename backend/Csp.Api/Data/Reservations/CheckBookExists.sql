@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM books WHERE Id = @BookId AND IsActive = 1
