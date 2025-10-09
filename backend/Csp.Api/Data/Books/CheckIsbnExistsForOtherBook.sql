@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM books WHERE Isbn = @Isbn AND Id <> @Id

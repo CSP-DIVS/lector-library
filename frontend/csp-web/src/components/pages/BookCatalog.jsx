@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import './BookCatalog.css';
-import api from '../../lib/api';
+import api, { reservationApi } from '../../lib/api';
 
 const BookCatalog = ({ user }) => {
   const [books, setBooks] = useState([]);
@@ -15,6 +15,7 @@ const BookCatalog = ({ user }) => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [selectedBook, setSelectedBook] = useState(null);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [reserving, setReserving] = useState(false);
 
   const pageSize = 12;
 
@@ -72,6 +73,35 @@ const BookCatalog = ({ user }) => {
 
   const handleBookClick = (book) => {
     setSelectedBook(book);
+  };
+
+  const handleReserve = async (book) => {
+    if (!user || !user.id) {
+      alert('Please log in to reserve a book');
+      return;
+    }
+
+    if (window.confirm(`Reserve "${book.title}"?\n\nYou will be notified when the book is available for pickup.`)) {
+      try {
+        setReserving(true);
+        const response = await reservationApi.createReservation(book.id, user.id);
+        
+        if (response.data.success) {
+          alert(`Success! ${response.data.message}`);
+          // Close modal and refresh book list
+          setSelectedBook(null);
+          fetchBooks();
+        } else {
+          alert(`Failed to reserve: ${response.data.message}`);
+        }
+      } catch (error) {
+        console.error('Error creating reservation:', error);
+        const errorMessage = error.response?.data?.message || 'Failed to create reservation. Please try again.';
+        alert(errorMessage);
+      } finally {
+        setReserving(false);
+      }
+    }
   };
 
   const handlePageChange = (page) => {
@@ -322,15 +352,16 @@ const BookCatalog = ({ user }) => {
                 {user.role === 'Member' && (
                   <div className="member-actions">
                     <button
-                      disabled={selectedBook.availableCopies === 0}
+                      onClick={() => handleReserve(selectedBook)}
+                      disabled={selectedBook.availableCopies === 0 || reserving}
                       className={`btn ${selectedBook.availableCopies > 0 ? 'btn-primary' : 'btn-disabled'}`}
                     >
-                      {selectedBook.availableCopies > 0 ? 'Reserve This Book' : 'Currently Unavailable'}
+                      {reserving ? 'Reserving...' : (selectedBook.availableCopies > 0 ? 'Reserve This Book' : 'Currently Unavailable')}
                     </button>
                     <p className="action-note">
                       {selectedBook.availableCopies > 0 
                         ? 'Click to reserve this book for pickup'
-                        : 'This book is currently checked out. Check back later or place a hold.'
+                        : 'This book is currently checked out. You can still reserve it to join the queue.'
                       }
                     </p>
                   </div>

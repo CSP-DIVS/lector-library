@@ -1,5 +1,6 @@
 using Csp.Api.Models;
 using Csp.Api.DTOs;
+using Csp.Api.Data;
 using MySql.Data.MySqlClient;
 using System.Security.Cryptography;
 using System.Text;
@@ -159,9 +160,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var sql = @"SELECT Id, Username, Email, PasswordHash, Role, IsActive 
-                        FROM users 
-                        WHERE Username = @Identifier OR Email = @Identifier";
+            var sql = SqlQueryLoader.LoadQuery("Users", "Login");
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Identifier", request.Username);
 
@@ -211,7 +210,7 @@ namespace Csp.Api.Services
             await conn.OpenAsync();
 
             // Check if user already exists
-            var checkSql = "SELECT COUNT(*) FROM users WHERE Username = @Username OR Email = @Email";
+            var checkSql = SqlQueryLoader.LoadQuery("Users", "CheckUserExists");
             await using var checkCmd = new MySqlCommand(checkSql, conn);
             checkCmd.Parameters.AddWithValue("@Username", request.Username);
             checkCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -227,10 +226,7 @@ namespace Csp.Api.Services
             }
 
             // Insert new user
-            var insertSql = @"
-                INSERT INTO users (Username, Email, PasswordHash, Role, IsActive) 
-                VALUES (@Username, @Email, @PasswordHash, 'Member', 1);
-                SELECT LAST_INSERT_ID();";
+            var insertSql = SqlQueryLoader.LoadQuery("Users", "RegisterUser");
             
             await using var insertCmd = new MySqlCommand(insertSql, conn);
             insertCmd.Parameters.AddWithValue("@Username", request.Username);
@@ -258,7 +254,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var checkSql = "SELECT COUNT(*) FROM users WHERE Username = @Username OR Email = @Email";
+            var checkSql = SqlQueryLoader.LoadQuery("Users", "CheckUserExists");
             await using var checkCmd = new MySqlCommand(checkSql, conn);
             checkCmd.Parameters.AddWithValue("@Username", request.Username);
             checkCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -268,9 +264,7 @@ namespace Csp.Api.Services
                 return new LoginResponse { Success = false, Message = "Username or email already exists" };
             }
 
-            var insertSql = @"INSERT INTO users (Username, Email, PasswordHash, Role, IsActive)
-                              VALUES (@Username, @Email, @PasswordHash, 'Member', 1);
-                              SELECT LAST_INSERT_ID();";
+            var insertSql = SqlQueryLoader.LoadQuery("Users", "CreateMember");
             await using var insertCmd = new MySqlCommand(insertSql, conn);
             insertCmd.Parameters.AddWithValue("@Username", request.Username);
             insertCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -327,7 +321,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var dupSql = "SELECT COUNT(*) FROM users WHERE (Username = @Username OR Email = @Email) AND Id <> @Id";
+            var dupSql = SqlQueryLoader.LoadQuery("Users", "CheckDuplicateUser");
             await using var dupCmd = new MySqlCommand(dupSql, conn);
             dupCmd.Parameters.AddWithValue("@Username", request.Username);
             dupCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -335,7 +329,7 @@ namespace Csp.Api.Services
             var dup = Convert.ToInt32(await dupCmd.ExecuteScalarAsync()) > 0;
             if (dup) return false;
 
-            var updateSql = "UPDATE users SET Username=@Username, Email=@Email WHERE Id=@Id AND Role='Member'";
+            var updateSql = SqlQueryLoader.LoadQuery("Users", "UpdateMember");
             await using var updateCmd = new MySqlCommand(updateSql, conn);
             updateCmd.Parameters.AddWithValue("@Username", request.Username);
             updateCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -352,7 +346,7 @@ namespace Csp.Api.Services
 
         private static async Task WriteAuditAsync(MySqlConnection conn, int actorUserId, string action, int targetUserId, string details)
         {
-            var sql = "INSERT INTO audit_log (ActorUserId, Action, TargetUserId, Details) VALUES (@ActorUserId, @Action, @TargetUserId, @Details)";
+            var sql = SqlQueryLoader.LoadQuery("Users", "InsertAuditLog");
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@ActorUserId", actorUserId);
             cmd.Parameters.AddWithValue("@Action", action);
@@ -367,7 +361,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var updateSql = "UPDATE users SET IsActive=@IsActive WHERE Id=@Id";
+            var updateSql = SqlQueryLoader.LoadQuery("Users", "UpdateUserStatus");
             await using var updateCmd = new MySqlCommand(updateSql, conn);
             updateCmd.Parameters.AddWithValue("@IsActive", isActive ? 1 : 0);
             updateCmd.Parameters.AddWithValue("@Id", id);
@@ -393,11 +387,35 @@ namespace Csp.Api.Services
             return passwordHash == hash;
         }
 
+        private bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(email);
+                return addr.Address == email && email.Contains("@") && email.Contains(".");
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsValidPassword(string password)
+        {
+            // Password complexity: at least one uppercase, one lowercase, one digit, and one special character
+            var hasUpper = password.Any(char.IsUpper);
+            var hasLower = password.Any(char.IsLower);
+            var hasDigit = password.Any(char.IsDigit);
+            var hasSpecial = password.Any(ch => !char.IsLetterOrDigit(ch));
+            
+            return hasUpper && hasLower && hasDigit && hasSpecial;
+        }
+
         public async Task<UserDto?> GetCurrentUserAsync(int id)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
-            var sql = "SELECT Id, Username, Email, Role, IsActive FROM users WHERE Id=@Id";
+            var sql = SqlQueryLoader.LoadQuery("Users", "GetUserById");
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id);
             await using var r = await cmd.ExecuteReaderAsync();
@@ -419,7 +437,7 @@ namespace Csp.Api.Services
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
-            var sql = "SELECT Id, Username, Email, Role, IsActive FROM users WHERE Username=@Username";
+            var sql = SqlQueryLoader.LoadQuery("Users", "GetUserByUsername");
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Username", username);
             await using var r = await cmd.ExecuteReaderAsync();
@@ -439,10 +457,18 @@ namespace Csp.Api.Services
 
         public async Task<bool> UpdateMyProfileAsync(int id, UpdateProfileRequest request)
         {
+            // Validate email format
+            if (string.IsNullOrWhiteSpace(request.Email) || !IsValidEmail(request.Email))
+                return false;
+            
+            // Validate username
+            if (string.IsNullOrWhiteSpace(request.Username))
+                return false;
+
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var dupSql = "SELECT COUNT(*) FROM users WHERE (Username=@Username OR Email=@Email) AND Id<>@Id";
+            var dupSql = SqlQueryLoader.LoadQuery("Users", "CheckDuplicateUser");
             await using var dupCmd = new MySqlCommand(dupSql, conn);
             dupCmd.Parameters.AddWithValue("@Username", request.Username);
             dupCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -450,7 +476,7 @@ namespace Csp.Api.Services
             var dup = Convert.ToInt32(await dupCmd.ExecuteScalarAsync()) > 0;
             if (dup) return false;
 
-            var sql = "UPDATE users SET Username=@Username, Email=@Email WHERE Id=@Id";
+            var sql = SqlQueryLoader.LoadQuery("Users", "UpdateProfile");
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Username", request.Username);
             cmd.Parameters.AddWithValue("@Email", request.Email);
@@ -461,17 +487,22 @@ namespace Csp.Api.Services
 
         public async Task<bool> ChangePasswordAsync(int id, ChangePasswordRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8) return false;
+            // Validate password length and complexity
+            if (string.IsNullOrWhiteSpace(request.NewPassword) || 
+                request.NewPassword.Length < 8 || 
+                !IsValidPassword(request.NewPassword))
+                return false;
+                
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var getSql = "SELECT PasswordHash FROM users WHERE Id=@Id";
+            var getSql = SqlQueryLoader.LoadQuery("Users", "GetPasswordHash");
             await using var getCmd = new MySqlCommand(getSql, conn);
             getCmd.Parameters.AddWithValue("@Id", id);
             var stored = (string?)await getCmd.ExecuteScalarAsync();
             if (string.IsNullOrEmpty(stored) || !VerifyPassword(request.CurrentPassword, stored)) return false;
 
-            var updSql = "UPDATE users SET PasswordHash=@Hash WHERE Id=@Id";
+            var updSql = SqlQueryLoader.LoadQuery("Users", "UpdatePassword");
             await using var updCmd = new MySqlCommand(updSql, conn);
             updCmd.Parameters.AddWithValue("@Hash", HashPassword(request.NewPassword));
             updCmd.Parameters.AddWithValue("@Id", id);
@@ -484,7 +515,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var checkSql = "SELECT COUNT(*) FROM users WHERE Username = @Username OR Email = @Email";
+            var checkSql = SqlQueryLoader.LoadQuery("Users", "CheckUserExists");
             await using var checkCmd = new MySqlCommand(checkSql, conn);
             checkCmd.Parameters.AddWithValue("@Username", request.Username);
             checkCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -494,9 +525,7 @@ namespace Csp.Api.Services
                 return new LoginResponse { Success = false, Message = "Username or email already exists" };
             }
 
-            var insertSql = @"INSERT INTO users (Username, Email, PasswordHash, Role, IsActive)
-                              VALUES (@Username, @Email, @PasswordHash, @Role, 1);
-                              SELECT LAST_INSERT_ID();";
+            var insertSql = SqlQueryLoader.LoadQuery("Users", "CreateUser");
             await using var insertCmd = new MySqlCommand(insertSql, conn);
             insertCmd.Parameters.AddWithValue("@Username", request.Username);
             insertCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -567,7 +596,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var dupSql = "SELECT COUNT(*) FROM users WHERE (Username = @Username OR Email = @Email) AND Id <> @Id";
+            var dupSql = SqlQueryLoader.LoadQuery("Users", "CheckDuplicateUser");
             await using var dupCmd = new MySqlCommand(dupSql, conn);
             dupCmd.Parameters.AddWithValue("@Username", request.Username);
             dupCmd.Parameters.AddWithValue("@Email", request.Email);
@@ -575,7 +604,7 @@ namespace Csp.Api.Services
             var dup = Convert.ToInt32(await dupCmd.ExecuteScalarAsync()) > 0;
             if (dup) return false;
 
-            var updateSql = "UPDATE users SET Username=@Username, Email=@Email, Role=@Role WHERE Id=@Id";
+            var updateSql = SqlQueryLoader.LoadQuery("Users", "UpdateUser");
             await using var updateCmd = new MySqlCommand(updateSql, conn);
             updateCmd.Parameters.AddWithValue("@Username", request.Username);
             updateCmd.Parameters.AddWithValue("@Email", request.Email);

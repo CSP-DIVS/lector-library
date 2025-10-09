@@ -34,4 +34,47 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
+// Lending API functions
+export const lendingApi = {
+  borrowBook: (bookId, userId, loanDurationDays = 14) => 
+    api.post('/lendings/borrow', { bookId, userId, loanDurationDays }),
+  
+  returnBook: (lendingId, fineAmount = null) => 
+    api.post('/lendings/return', { lendingId, fineAmount }),
+  
+  renewLoan: (lendingId) => 
+    api.post('/lendings/renew', { lendingId }),
+  
+  getActiveLoans: (userId = null, page = 1, pageSize = 10) => 
+    api.get('/lendings/active', { params: { userId, page, pageSize } }),
+  
+  getLoanHistory: (userId = null, page = 1, pageSize = 10) => 
+    api.get('/lendings/history', { params: { userId, page, pageSize } }),
+  
+  getLendingById: (id) => 
+    api.get(`/lendings/${id}`)
+};
+
+// Reservation API functions
+export const reservationApi = {
+  createReservation: (bookId, userId) => 
+    api.post('/reservations', { bookId, userId }),
+  
+  cancelReservation: (reservationId) => 
+    api.delete(`/reservations/${reservationId}`),
+  
+  fulfillReservation: (reservationId, loanDurationDays = 14) => 
+    api.post('/reservations/fulfill', { reservationId, loanDurationDays }),
+  
+  getMyReservations: (page = 1, pageSize = 10) => 
+    api.get('/reservations/my-reservations', { params: { page, pageSize } }),
+  
+  getAllReservations: (page = 1, pageSize = 10) => 
+    api.get('/reservations', { params: { page, pageSize } }),
+  
+  getReservationById: (id) => 
+    api.get(`/reservations/${id}`)
+};
+
 export default api;

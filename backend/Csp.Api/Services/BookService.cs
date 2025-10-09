@@ -1,5 +1,6 @@
 using Csp.Api.Models;
 using Csp.Api.DTOs;
+using Csp.Api.Data;
 using MySql.Data.MySqlClient;
 
 namespace Csp.Api.Services
@@ -76,7 +77,7 @@ namespace Csp.Api.Services
             await conn.OpenAsync();
 
             // Check if ISBN already exists
-            var checkIsbnSql = "SELECT COUNT(*) FROM books WHERE Isbn = @Isbn";
+            var checkIsbnSql = SqlQueryLoader.LoadQuery("Books", "CheckIsbnExists");
             await using var checkCmd = new MySqlCommand(checkIsbnSql, conn);
             checkCmd.Parameters.AddWithValue("@Isbn", request.Isbn);
             var isbnExists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
@@ -91,10 +92,7 @@ namespace Csp.Api.Services
             }
 
             // Insert book
-            var insertBookSql = @"
-                INSERT INTO books (Title, Author, Isbn, Category, PublishedYear, IsActive, CreatedBy, UpdatedBy)
-                VALUES (@Title, @Author, @Isbn, @Category, @PublishedYear, 1, @CreatedBy, @UpdatedBy);
-                SELECT LAST_INSERT_ID();";
+            var insertBookSql = SqlQueryLoader.LoadQuery("Books", "InsertBook");
             
             await using var bookCmd = new MySqlCommand(insertBookSql, conn);
             bookCmd.Parameters.AddWithValue("@Title", request.Title);
@@ -108,9 +106,7 @@ namespace Csp.Api.Services
             var bookId = Convert.ToInt32(await bookCmd.ExecuteScalarAsync());
 
             // Insert inventory record
-            var insertInventorySql = @"
-                INSERT INTO book_inventory (BookId, TotalCopies, AvailableCopies)
-                VALUES (@BookId, @TotalCopies, @AvailableCopies)";
+            var insertInventorySql = SqlQueryLoader.LoadQuery("Books", "InsertBookInventory");
             
             await using var inventoryCmd = new MySqlCommand(insertInventorySql, conn);
             inventoryCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -181,7 +177,7 @@ namespace Csp.Api.Services
             await conn.OpenAsync();
 
             // Check if book exists
-            var bookExistsSql = "SELECT COUNT(*) FROM books WHERE Id = @Id";
+            var bookExistsSql = SqlQueryLoader.LoadQuery("Books", "CheckBookExists");
             await using var existsCmd = new MySqlCommand(bookExistsSql, conn);
             existsCmd.Parameters.AddWithValue("@Id", id);
             var bookExists = Convert.ToInt32(await existsCmd.ExecuteScalarAsync()) > 0;
@@ -196,7 +192,7 @@ namespace Csp.Api.Services
             }
 
             // Check if ISBN already exists for different book
-            var checkIsbnSql = "SELECT COUNT(*) FROM books WHERE Isbn = @Isbn AND Id <> @Id";
+            var checkIsbnSql = SqlQueryLoader.LoadQuery("Books", "CheckIsbnExistsForOtherBook");
             await using var checkCmd = new MySqlCommand(checkIsbnSql, conn);
             checkCmd.Parameters.AddWithValue("@Isbn", request.Isbn);
             checkCmd.Parameters.AddWithValue("@Id", id);
@@ -212,11 +208,7 @@ namespace Csp.Api.Services
             }
 
             // Update book
-            var updateBookSql = @"
-                UPDATE books 
-                SET Title = @Title, Author = @Author, Isbn = @Isbn, Category = @Category, 
-                    PublishedYear = @PublishedYear, UpdatedBy = @UpdatedBy, UpdatedAt = CURRENT_TIMESTAMP
-                WHERE Id = @Id";
+            var updateBookSql = SqlQueryLoader.LoadQuery("Books", "UpdateBook");
             
             await using var bookCmd = new MySqlCommand(updateBookSql, conn);
             bookCmd.Parameters.AddWithValue("@Title", request.Title);
@@ -239,7 +231,7 @@ namespace Csp.Api.Services
             }
 
             // Update inventory - recalculate available copies
-            var getCurrentInventorySql = "SELECT TotalCopies, AvailableCopies FROM book_inventory WHERE BookId = @BookId";
+            var getCurrentInventorySql = SqlQueryLoader.LoadQuery("Books", "GetCurrentInventory");
             await using var getInventoryCmd = new MySqlCommand(getCurrentInventorySql, conn);
             getInventoryCmd.Parameters.AddWithValue("@BookId", id);
             
@@ -257,10 +249,7 @@ namespace Csp.Api.Services
             int totalDifference = request.TotalCopies - currentTotal;
             int newAvailableCopies = Math.Max(0, currentAvailable + totalDifference);
             
-            var updateInventorySql = @"
-                UPDATE book_inventory 
-                SET TotalCopies = @TotalCopies, AvailableCopies = @AvailableCopies, UpdatedAt = CURRENT_TIMESTAMP
-                WHERE BookId = @BookId";
+            var updateInventorySql = SqlQueryLoader.LoadQuery("Books", "UpdateBookInventory");
             
             await using var inventoryCmd = new MySqlCommand(updateInventorySql, conn);
             inventoryCmd.Parameters.AddWithValue("@TotalCopies", request.TotalCopies);
@@ -288,7 +277,7 @@ namespace Csp.Api.Services
             await conn.OpenAsync();
 
             // Check if book exists
-            var bookExistsSql = "SELECT COUNT(*) FROM books WHERE Id = @Id";
+            var bookExistsSql = SqlQueryLoader.LoadQuery("Books", "CheckBookExists");
             await using var existsCmd = new MySqlCommand(bookExistsSql, conn);
             existsCmd.Parameters.AddWithValue("@Id", id);
             var bookExists = Convert.ToInt32(await existsCmd.ExecuteScalarAsync()) > 0;
@@ -303,7 +292,7 @@ namespace Csp.Api.Services
             }
 
             // Check if actor user exists (to avoid foreign key constraint issues)
-            var userExistsSql = "SELECT COUNT(*) FROM users WHERE Id = @UserId";
+            var userExistsSql = SqlQueryLoader.LoadQuery("Books", "CheckUserExists");
             await using var userExistsCmd = new MySqlCommand(userExistsSql, conn);
             userExistsCmd.Parameters.AddWithValue("@UserId", actorUserId);
             var userExists = Convert.ToInt32(await userExistsCmd.ExecuteScalarAsync()) > 0;
@@ -327,10 +316,7 @@ namespace Csp.Api.Services
             }
 
             // Update book status
-            var updateSql = @"
-                UPDATE books 
-                SET IsActive = @IsActive, UpdatedAt = CURRENT_TIMESTAMP
-                WHERE Id = @Id";
+            var updateSql = SqlQueryLoader.LoadQuery("Books", "UpdateBookStatus");
             
             await using var cmd = new MySqlCommand(updateSql, conn);
             cmd.Parameters.AddWithValue("@IsActive", isActive ? 1 : 0);
@@ -481,18 +467,7 @@ namespace Csp.Api.Services
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var sql = @"
-                SELECT b.Id, b.Title, b.Author, b.Isbn, b.Category, b.PublishedYear, 
-                       b.IsActive, b.CreatedAt, b.UpdatedAt,
-                       COALESCE(bi.TotalCopies, 0) as TotalCopies,
-                       COALESCE(bi.AvailableCopies, 0) as AvailableCopies,
-                       CASE 
-                           WHEN COALESCE(bi.AvailableCopies, 0) > 0 THEN 'Available'
-                           ELSE 'Unavailable'
-                       END as Status
-                FROM books b 
-                LEFT JOIN book_inventory bi ON b.Id = bi.BookId 
-                WHERE b.Id = @Id";
+            var sql = SqlQueryLoader.LoadQuery("Books", "GetBookById");
 
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id);
@@ -526,7 +501,7 @@ namespace Csp.Api.Services
             await conn.OpenAsync();
 
             // Check if book exists
-            var bookExistsSql = "SELECT COUNT(*) FROM books WHERE Id = @Id";
+            var bookExistsSql = SqlQueryLoader.LoadQuery("Books", "CheckBookExists");
             await using var existsCmd = new MySqlCommand(bookExistsSql, conn);
             existsCmd.Parameters.AddWithValue("@Id", id);
             var bookExists = Convert.ToInt32(await existsCmd.ExecuteScalarAsync()) > 0;
@@ -537,7 +512,7 @@ namespace Csp.Api.Services
             }
 
             // Delete book (cascade will handle inventory)
-            var deleteSql = "DELETE FROM books WHERE Id = @Id";
+            var deleteSql = SqlQueryLoader.LoadQuery("Books", "DeleteBook");
             await using var cmd = new MySqlCommand(deleteSql, conn);
             cmd.Parameters.AddWithValue("@Id", id);
 
@@ -554,7 +529,7 @@ namespace Csp.Api.Services
 
         private static async Task WriteAuditAsync(MySqlConnection conn, int actorUserId, string action, int targetId, string details)
         {
-            var sql = "INSERT INTO audit_log (ActorUserId, Action, TargetUserId, Details) VALUES (@ActorUserId, @Action, @TargetUserId, @Details)";
+            var sql = SqlQueryLoader.LoadQuery("Books", "InsertAuditLog");
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@ActorUserId", actorUserId);
             cmd.Parameters.AddWithValue("@Action", action);

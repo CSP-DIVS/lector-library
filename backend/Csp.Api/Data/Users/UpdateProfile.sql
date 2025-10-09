@@ -1,0 +1,1 @@
+UPDATE users SET Username=@Username, Email=@Email WHERE Id=@Id

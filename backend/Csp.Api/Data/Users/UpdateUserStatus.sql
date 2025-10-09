@@ -1,0 +1,1 @@
+UPDATE users SET IsActive=@IsActive WHERE Id=@Id
