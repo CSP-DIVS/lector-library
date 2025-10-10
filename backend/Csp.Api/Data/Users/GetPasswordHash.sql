@@ -1,0 +1,1 @@
+SELECT PasswordHash FROM users WHERE Id=@Id

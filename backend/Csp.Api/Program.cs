@@ -13,6 +13,8 @@ builder.Services.AddSwaggerGen();
 // Register services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IBookService, BookService>();
+builder.Services.AddScoped<ILendingService, LendingService>();
+builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
 var jwtValidation = new JwtTokenService(builder.Configuration).GetValidationParameters();
@@ -47,6 +49,12 @@ using (var scope = app.Services.CreateScope())
 {
     var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
     await userService.InitializeDatabaseAsync();
+    
+    var lendingService = scope.ServiceProvider.GetRequiredService<ILendingService>();
+    await lendingService.InitializeLendingTablesAsync();
+    
+    var reservationService = scope.ServiceProvider.GetRequiredService<IReservationService>();
+    await reservationService.InitializeReservationTablesAsync();
 }
 
 // Configure the HTTP request pipeline

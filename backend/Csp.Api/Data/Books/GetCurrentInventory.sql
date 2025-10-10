@@ -1,0 +1,1 @@
+SELECT TotalCopies, AvailableCopies FROM book_inventory WHERE BookId = @BookId

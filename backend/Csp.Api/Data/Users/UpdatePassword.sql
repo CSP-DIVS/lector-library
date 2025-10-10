@@ -1,0 +1,1 @@
+UPDATE users SET PasswordHash=@Hash WHERE Id=@Id
