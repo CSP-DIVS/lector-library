@@ -14,6 +14,7 @@ namespace Csp.Api.Services
         Task<PagedLendingsResponse> GetLoanHistoryAsync(int? userId = null, int page = 1, int pageSize = 10);
         Task<LendingDto?> GetLendingByIdAsync(int id);
         Task InitializeLendingTablesAsync();
+        Task<AdjustFineResponse> AdjustFineAsync(int lendingId, AdjustFineRequest request, int adminUserId);
     }
 
     public class LendingService : ILendingService
@@ -39,6 +40,84 @@ namespace Csp.Api.Services
 
             await using var cmd = new MySqlCommand(createLendingsTableSql, conn);
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<AdjustFineResponse> AdjustFineAsync(int lendingId, AdjustFineRequest request, int adminUserId)
+        {
+            // Validate
+            if (lendingId <= 0)
+                return new AdjustFineResponse { Success = false, Message = "Invalid lending id" };
+            if (request.NewAmount < 0)
+                return new AdjustFineResponse { Success = false, Message = "New amount must be >= 0" };
+            if (string.IsNullOrWhiteSpace(request.Reason))
+                return new AdjustFineResponse { Success = false, Message = "A reason is required for all fine adjustments." };
+
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+
+            try
+            {
+                // Get current fine and userId for audit target
+                var getSql = SqlQueryLoader.LoadQuery("Lendings", "GetFineInfoForAdjustment");
+                await using var getCmd = new MySqlCommand(getSql, conn, tx);
+                getCmd.Parameters.AddWithValue("@LendingId", lendingId);
+                await using var r = await getCmd.ExecuteReaderAsync();
+                if (!await r.ReadAsync())
+                {
+                    await r.CloseAsync();
+                    await tx.RollbackAsync();
+                    return new AdjustFineResponse { Success = false, Message = "Lending record not found" };
+                }
+                var currentFine = r.IsDBNull(0) ? (decimal?)null : r.GetDecimal(0);
+                var memberUserId = r.GetInt32(1);
+                await r.CloseAsync();
+
+                var original = currentFine ?? 0m;
+
+                // Update fine and paid flag
+                var updSql = SqlQueryLoader.LoadQuery("Lendings", "AdjustFineAmount");
+                await using var updCmd = new MySqlCommand(updSql, conn, tx);
+                updCmd.Parameters.AddWithValue("@LendingId", lendingId);
+                updCmd.Parameters.AddWithValue("@NewAmount", request.NewAmount);
+                updCmd.Parameters.AddWithValue("@FinePaid", request.NewAmount == 0 ? 1 : 0);
+                updCmd.Parameters.AddWithValue("@UpdatedAt", DateTime.UtcNow);
+                var rows = await updCmd.ExecuteNonQueryAsync();
+                if (rows == 0)
+                {
+                    await tx.RollbackAsync();
+                    return new AdjustFineResponse { Success = false, Message = "Failed to adjust fine" };
+                }
+
+                // Audit
+                var auditSql = SqlQueryLoader.LoadQuery("Users", "InsertAuditLog");
+                await using var auditCmd = new MySqlCommand(auditSql, conn, tx);
+                auditCmd.Parameters.AddWithValue("@ActorUserId", adminUserId);
+                auditCmd.Parameters.AddWithValue("@Action", request.NewAmount == 0 ? "WaiveFine" : "AdjustFine");
+                auditCmd.Parameters.AddWithValue("@TargetUserId", memberUserId);
+                var details = $"lendingId={lendingId}; original={original:F2}; new={request.NewAmount:F2}; reason={request.Reason}";
+                auditCmd.Parameters.AddWithValue("@Details", details);
+                await auditCmd.ExecuteNonQueryAsync();
+
+                await tx.CommitAsync();
+
+                var lending = await GetLendingByIdAsync(lendingId);
+                return new AdjustFineResponse
+                {
+                    Success = true,
+                    Message = request.NewAmount == 0 ? "Fine waived successfully" : "Fine updated successfully",
+                    LendingId = lendingId,
+                    OriginalAmount = original,
+                    NewAmount = request.NewAmount,
+                    FinePaid = request.NewAmount == 0,
+                    Lending = lending
+                };
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return new AdjustFineResponse { Success = false, Message = $"Error adjusting fine: {ex.Message}" };
+            }
         }
 
         public async Task<LendingResponse> BorrowBookAsync(BorrowBookRequest request)

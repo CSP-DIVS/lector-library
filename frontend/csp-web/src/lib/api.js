@@ -77,4 +77,10 @@ export const reservationApi = {
     api.get(`/reservations/${id}`)
 };
 
+// Fines API functions
+export const finesApi = {
+  adjustFine: (lendingId, adjustmentData) => 
+    api.put(`/fines/${lendingId}/adjust`, adjustmentData)
+};
+
 export default api;

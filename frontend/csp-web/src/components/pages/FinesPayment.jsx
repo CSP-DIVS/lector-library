@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import './FinesPayment.css';
+import AdjustFineModal from '../ui/AdjustFineModal';
+import { finesApi } from '../../lib/api';
 
 const FinesPayment = ({ user }) => {
   const [fines, setFines] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('outstanding');
   const [loading, setLoading] = useState(true);
+  const [adjustFineModal, setAdjustFineModal] = useState({ 
+    isOpen: false, 
+    fine: null 
+  });
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     fetchFinesData();
@@ -29,6 +36,51 @@ const FinesPayment = ({ user }) => {
   const totalOutstanding = fines
     .filter(fine => fine.status === 'Outstanding')
     .reduce((sum, fine) => sum + fine.amount, 0);
+
+  const handleAdjustFine = (fine) => {
+    setAdjustFineModal({ 
+      isOpen: true, 
+      fine 
+    });
+  };
+
+  const handleAdjustFineSubmit = async (lendingId, adjustmentData) => {
+    try {
+      const response = await finesApi.adjustFine(lendingId, adjustmentData);
+      
+      if (response.data.success) {
+        // Update the fine in the local state
+        setFines(prevFines => 
+          prevFines.map(fine => 
+            fine.id === lendingId 
+              ? { 
+                  ...fine, 
+                  amount: adjustmentData.newAmount,
+                  status: adjustmentData.newAmount === 0 ? 'Paid' : fine.status
+                }
+              : fine
+          )
+        );
+        
+        // Show success message
+        setToastMessage(response.data.message);
+        setTimeout(() => setToastMessage(''), 4000);
+        
+        // Refresh data to ensure consistency
+        await fetchFinesData();
+      }
+    } catch (error) {
+      console.error('Error adjusting fine:', error);
+      throw error; // Re-throw to let modal handle the error
+    }
+  };
+
+  const closeAdjustFineModal = () => {
+    setAdjustFineModal({ 
+      isOpen: false, 
+      fine: null 
+    });
+  };
 
   if (loading) {
     return (
@@ -161,7 +213,14 @@ const FinesPayment = ({ user }) => {
                             <>
                               <button className="btn btn-primary">Process Payment</button>
                               <button className="btn btn-outline">Send Notice</button>
-                              <button className="btn btn-secondary">Waive Fine</button>
+                              {user.role === 'Administrator' && (
+                                <button 
+                                  className="btn btn-secondary"
+                                  onClick={() => handleAdjustFine(fine)}
+                                >
+                                  Adjust Fine
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -235,6 +294,24 @@ const FinesPayment = ({ user }) => {
           </p>
         </div>
       )}
+
+      {/* Toast Message */}
+      {toastMessage && (
+        <div className="toast-message">
+          <div className="toast-content">
+            <span className="toast-icon">✓</span>
+            {toastMessage}
+          </div>
+        </div>
+      )}
+
+      {/* Adjust Fine Modal */}
+      <AdjustFineModal
+        isOpen={adjustFineModal.isOpen}
+        onClose={closeAdjustFineModal}
+        fine={adjustFineModal.fine}
+        onAdjustFine={handleAdjustFineSubmit}
+      />
     </div>
   );
 };

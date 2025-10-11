@@ -56,6 +56,24 @@ namespace Csp.Api.DTOs
         public int PageSize { get; set; }
     }
 
+    // Fines DTOs
+    public class AdjustFineRequest
+    {
+        public decimal NewAmount { get; set; }
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    public class AdjustFineResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public int LendingId { get; set; }
+        public decimal? OriginalAmount { get; set; }
+        public decimal NewAmount { get; set; }
+        public bool FinePaid { get; set; }
+        public LendingDto? Lending { get; set; }
+    }
+
     // Reservation DTOs
     public class ReservationDto
     {
