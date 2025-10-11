@@ -5,23 +5,84 @@ using MySql.Data.MySqlClient;
 
 namespace Csp.Api.Services
 {
+    /// <summary>
+    /// Interface defining the contract for book lending operations.
+    /// </summary>
     public interface ILendingService
     {
+        /// <summary>
+        /// Processes a request to borrow a book.
+        /// </summary>
+        /// <param name="request">The borrow book request details.</param>
+        /// <returns>A response indicating success or failure with lending details.</returns>
         Task<LendingResponse> BorrowBookAsync(BorrowBookRequest request);
+
+        /// <summary>
+        /// Processes the return of a borrowed book.
+        /// </summary>
+        /// <param name="request">The return book request details.</param>
+        /// <returns>A response indicating success or failure with return details.</returns>
         Task<LendingResponse> ReturnBookAsync(ReturnBookRequest request);
+
+        /// <summary>
+        /// Renews an existing loan for a user.
+        /// </summary>
+        /// <param name="request">The renewal request details.</param>
+        /// <param name="userId">The ID of the user requesting the renewal.</param>
+        /// <returns>A response indicating success or failure with updated lending details.</returns>
         Task<LendingResponse> RenewLoanAsync(RenewLoanRequest request, int userId);
+
+        /// <summary>
+        /// Retrieves a paginated list of active loans.
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter loans by specific user.</param>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing active lending records.</returns>
         Task<PagedLendingsResponse> GetActiveLoansAsync(int? userId = null, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves a paginated list of loan history (returned books).
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter history by specific user.</param>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing historical lending records.</returns>
         Task<PagedLendingsResponse> GetLoanHistoryAsync(int? userId = null, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves detailed information about a specific lending record.
+        /// </summary>
+        /// <param name="id">The lending record ID.</param>
+        /// <returns>The lending details, or null if not found.</returns>
         Task<LendingDto?> GetLendingByIdAsync(int id);
+
+        /// <summary>
+        /// Initializes the lending database tables.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         Task InitializeLendingTablesAsync();
     }
 
+    /// <summary>
+    /// Service implementation for managing book lending operations.
+    /// Handles borrowing, returning, renewing books, and maintains lending records.
+    /// </summary>
     public class LendingService : ILendingService
     {
         private readonly IConfiguration _configuration;
         private readonly string _connectionString;
+
+        /// <summary>
+        /// The fine amount charged per day for overdue books.
+        /// </summary>
         private const decimal FINE_PER_DAY = 1.0m;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LendingService"/> class.
+        /// </summary>
+        /// <param name="configuration">The application configuration for database connection.</param>
+        /// <exception cref="InvalidOperationException">Thrown when connection string is not found.</exception>
         public LendingService(IConfiguration configuration)
         {
             _configuration = configuration;
@@ -30,6 +91,10 @@ namespace Csp.Api.Services
                                  ?? throw new InvalidOperationException("Connection string not found");
         }
 
+        /// <summary>
+        /// Initializes the lending database tables by executing the create table script.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task InitializeLendingTablesAsync()
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -41,6 +106,12 @@ namespace Csp.Api.Services
             await cmd.ExecuteNonQueryAsync();
         }
 
+        /// <summary>
+        /// Processes a book borrowing request by validating availability and creating a lending record.
+        /// Validates book existence, availability, active status, and checks for existing loans.
+        /// </summary>
+        /// <param name="request">The borrow book request containing book ID, user ID, and loan duration.</param>
+        /// <returns>A response indicating success or failure with the created lending details.</returns>
         public async Task<LendingResponse> BorrowBookAsync(BorrowBookRequest request)
         {
             if (request.BookId <= 0 || request.UserId <= 0)
@@ -159,6 +230,12 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Processes the return of a borrowed book and calculates any applicable fines.
+        /// Updates the lending record, increments available copies, and calculates overdue fines if applicable.
+        /// </summary>
+        /// <param name="request">The return book request containing lending ID and optional fine amount.</param>
+        /// <returns>A response indicating success or failure with return details and fine information.</returns>
         public async Task<LendingResponse> ReturnBookAsync(ReturnBookRequest request)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -251,6 +328,13 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Renews an existing loan by extending the due date.
+        /// Validates user ownership, checks renewal limits, and ensures no pending reservations exist.
+        /// </summary>
+        /// <param name="request">The renewal request containing the lending ID.</param>
+        /// <param name="userId">The ID of the user requesting the renewal for authorization check.</param>
+        /// <returns>A response indicating success or failure with the updated lending details and new due date.</returns>
         public async Task<LendingResponse> RenewLoanAsync(RenewLoanRequest request, int userId)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -364,6 +448,14 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of active (currently borrowed) loans.
+        /// Optionally filters by user ID and includes book and user details.
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter loans. If null, returns all active loans.</param>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing active lending records with book and user information.</returns>
         public async Task<PagedLendingsResponse> GetActiveLoansAsync(int? userId = null, int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -408,6 +500,14 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of loan history (returned books).
+        /// Optionally filters by user ID and includes book and user details.
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter history. If null, returns all historical loans.</param>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing historical lending records with book and user information.</returns>
         public async Task<PagedLendingsResponse> GetLoanHistoryAsync(int? userId = null, int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -452,6 +552,12 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves detailed information about a specific lending record by ID.
+        /// Includes book details, user information, and calculated overdue status.
+        /// </summary>
+        /// <param name="id">The lending record ID.</param>
+        /// <returns>A lending DTO with full details, or null if the record is not found.</returns>
         public async Task<LendingDto?> GetLendingByIdAsync(int id)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -472,6 +578,12 @@ namespace Csp.Api.Services
             return null;
         }
 
+        /// <summary>
+        /// Maps a database reader row to a LendingDto object.
+        /// Extracts all lending details including book information, user details, and overdue calculations.
+        /// </summary>
+        /// <param name="reader">The MySQL data reader positioned at the current row.</param>
+        /// <returns>A populated LendingDto object with all relevant lending information.</returns>
         private LendingDto MapLendingDto(MySqlDataReader reader)
         {
             var isOverdue = reader.GetInt32(reader.GetOrdinal("IsOverdue")) == 1;
