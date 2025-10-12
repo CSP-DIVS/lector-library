@@ -746,7 +746,14 @@ FodyWeavers.xsd
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio,visualstudiocode,windows,macos,linux,node,jetbrains,Dotnet
 user_stories/*
-
+ 
+### DocFx ###
+# DocFx generated files
+_site/
+api/
+obj/
+.manifest
+.publish
 # Rider IDE files
 .idea/
 
@@ -757,3 +764,9 @@ qa/documentation/Sprint3_QA_Visual_Slides.md
 
 #QA Mock APIs
 qa/mock-apis/package-lock.json
+
+# VS Code settings that should be privately maintained
+.vscode/tasks.json
+
+# Local environment settings
+backend/Csp.Api/appsettings.Development.json

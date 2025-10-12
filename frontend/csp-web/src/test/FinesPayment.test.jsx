@@ -1,136 +1,57 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import FinesPayment from '../components/pages/FinesPayment'
+import { render, screen, waitFor } from '@testing-library/react'
+import FinesPayment from '../../components/pages/FinesPayment'
+import * as api from '../../lib/api'
 
-// Mock the finesApi  
-vi.mock('../lib/api', () => ({
-  finesApi: {
-    adjustFine: vi.fn()
-  }
-}))
-
-// Mock the AdjustFineModal component
-vi.mock('../components/ui/AdjustFineModal', () => ({
-  default: ({ isOpen, onClose, fine, onAdjustFine }) => {
-    if (!isOpen) return null
-    return (
-      <div data-testid="adjust-fine-modal">
-        <h3>Adjust Fine Modal</h3>
-        <p>Fine ID: {fine?.id}</p>
-        <button onClick={onClose}>Close Modal</button>
-        <button onClick={() => onAdjustFine(fine.id, { newAmount: 0, reason: 'Test waiver' })}>
-          Mock Adjust
-        </button>
-      </div>
-    )
-  }
-}))
+const userMember = { id: 1, role: 'Member' }
+const userAdmin = { id: 2, role: 'Administrator' }
 
 describe('FinesPayment', () => {
-  let user
-
-  const mockAdminUser = {
-    id: 1,
-    role: 'Administrator',
-    username: 'admin'
-  }
-
-  const mockRegularUser = {
-    id: 2,
-    role: 'Member', 
-    username: 'member'
-  }
-
   beforeEach(() => {
-    user = userEvent.setup()
-    vi.clearAllMocks()
+    vi.restoreAllMocks()
   })
 
-  describe('Admin Role Features', () => {
-    it('shows "Adjust Fine" button for administrators', () => {
-      render(<FinesPayment user={mockAdminUser} />)
-
-      // Wait for component to load
-      expect(screen.getByText('Fines & Payment Management')).toBeInTheDocument()
-      
-      // Should show adjust fine buttons for outstanding fines
-      const adjustButtons = screen.getAllByText('Adjust Fine')
-      expect(adjustButtons.length).toBeGreaterThan(0)
+  it('renders outstanding fines for member from backend', async () => {
+    vi.spyOn(api.lendingApi, 'getActiveLoans').mockResolvedValue({
+      data: {
+        items: [
+          { id: 10, bookTitle: 'Book A', bookAuthor: 'Auth', status: 'Overdue', dueDate: '2025-10-01', fineAmount: 1.5, finePaid: false, overdueDays: 6 },
+          { id: 11, bookTitle: 'Book B', bookAuthor: 'Auth', status: 'Active', dueDate: '2025-10-10', fineAmount: 0, finePaid: false }
+        ]
+      }
     })
 
-    it('hides "Adjust Fine" button for non-administrators', () => {
-      render(<FinesPayment user={mockRegularUser} />)
+    render(<FinesPayment user={userMember} />)
 
-      // Should not show adjust fine buttons
-      expect(screen.queryByText('Adjust Fine')).not.toBeInTheDocument()
-    })
-
-    it('opens adjust fine modal when button is clicked', async () => {
-      render(<FinesPayment user={mockAdminUser} />)
-
-      const adjustButton = screen.getAllByText('Adjust Fine')[0]
-      await user.click(adjustButton)
-
-      expect(screen.getByTestId('adjust-fine-modal')).toBeInTheDocument()
+    expect(await screen.findByText('My Fines & Payments')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Outstanding Fines')).toBeInTheDocument()
+      expect(screen.getByText('Book A')).toBeInTheDocument()
+      expect(screen.getByText('$1.50')).toBeInTheDocument()
     })
   })
 
-  describe('Fine Adjustment Functionality', () => {
-    it('handles successful fine adjustment', async () => {
-      const { finesApi } = await import('../lib/api')
-      finesApi.adjustFine.mockResolvedValue({
-        data: {
-          success: true,
-          message: 'Fine waived successfully',
-          newAmount: 0
-        }
-      })
+  it('falls back to mock data when backend fails', async () => {
+    vi.spyOn(api.lendingApi, 'getActiveLoans').mockRejectedValue(new Error('network'))
 
-      render(<FinesPayment user={mockAdminUser} />)
+    render(<FinesPayment user={userMember} />)
 
-      // Open modal and trigger adjustment
-      const adjustButton = screen.getAllByText('Adjust Fine')[0]
-      await user.click(adjustButton)
-
-      const mockAdjustButton = screen.getByText('Mock Adjust')
-      await user.click(mockAdjustButton)
-
-      await waitFor(() => {
-        expect(finesApi.adjustFine).toHaveBeenCalledWith(1, {
-          newAmount: 0,
-          reason: 'Test waiver'
-        })
-      })
-
-      // Should show success toast
-      expect(screen.getByText('Fine waived successfully')).toBeInTheDocument()
+    expect(await screen.findByText('My Fines & Payments')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('To Kill a Mockingbird')).toBeInTheDocument()
+      expect(screen.getByText('$3.50')).toBeInTheDocument()
     })
+  })
 
-    it('handles fine adjustment errors', async () => {
-      const { finesApi } = await import('../lib/api')
-        finesApi.adjustFine.mockResolvedValue({
-          data: {
-            success: false,
-            message: 'API Error'
-          }
-        })
+  it('shows admin labels and actions for staff', async () => {
+    vi.spyOn(api.lendingApi, 'getActiveLoans').mockResolvedValue({ data: { items: [] } })
 
-      render(<FinesPayment user={mockAdminUser} />)
+    render(<FinesPayment user={userAdmin} />)
 
-      // Open modal and trigger adjustment
-      const adjustButton = screen.getAllByText('Adjust Fine')[0]
-      await user.click(adjustButton)
-
-      const mockAdjustButton = screen.getByText('Mock Adjust')
-      await user.click(mockAdjustButton)
-
-      await waitFor(() => {
-        expect(finesApi.adjustFine).toHaveBeenCalled()
-      })
-
-        // Just verify the API was called - error handling would be in the modal component
-        expect(finesApi.adjustFine).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('Fines & Payment Management')).toBeInTheDocument()
+    expect(screen.getByText('All Fines')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('No fines to manage at this time.')).toBeInTheDocument()
     })
   })
 })

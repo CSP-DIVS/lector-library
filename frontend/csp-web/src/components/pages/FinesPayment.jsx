@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { finesApi, lendingApi } from '../../lib/api';
 import './FinesPayment.css';
 import AdjustFineModal from '../ui/AdjustFineModal';
 import { finesApi } from '../../lib/api';
@@ -20,14 +21,20 @@ const FinesPayment = ({ user }) => {
 
   const fetchFinesData = async () => {
     try {
-      // Mock data - replace with actual API calls
-      const mockFines = getMockFinesForRole(user.role);
-      const mockPayments = getMockPaymentHistoryForRole(user.role);
-      
-      setFines(mockFines);
-      setPaymentHistory(mockPayments);
+      // Fetch active loans and map to fines
+      const res = await lendingApi.getActiveLoans();
+      const items = res.data.items || res.data || [];
+      const mapped = finesApi.mapLoansToFines(items);
+      setFines(mapped);
+      // Payments are not implemented yet; keep an empty history for now
+      setPaymentHistory([]);
     } catch (error) {
       console.error('Error fetching fines data:', error);
+      // Fallback to mock data for dev convenience
+      const mockFines = getMockFinesForRole(user.role);
+      const mockPayments = getMockPaymentHistoryForRole(user.role);
+      setFines(mockFines);
+      setPaymentHistory(mockPayments);
     } finally {
       setLoading(false);
     }

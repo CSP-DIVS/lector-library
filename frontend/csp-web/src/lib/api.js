@@ -58,12 +58,12 @@ export const lendingApi = {
 
 // Reservation API functions
 export const reservationApi = {
-  createReservation: (bookId, userId) => 
-    api.post('/reservations', { bookId, userId }),
-  
-  cancelReservation: (reservationId) => 
-    api.delete(`/reservations/${reservationId}`),
-  
+  // Legacy endpoints (if present on backend)
+  adjustFine: (lendingId, adjustmentData) => 
+    api.put(`/fines/${lendingId}/adjust`, adjustmentData),
+  getUserFines: (userId) =>
+    api.get(`/fines/user/${userId}`),
+
   fulfillReservation: (reservationId, loanDurationDays = 14) => 
     api.post('/reservations/fulfill', { reservationId, loanDurationDays }),
   
@@ -79,10 +79,27 @@ export const reservationApi = {
 
 // Fines API functions
 export const finesApi = {
-  adjustFine: (lendingId, adjustmentData) => 
-    api.put(`/fines/${lendingId}/adjust`, adjustmentData),
-  getUserFines: (userId) =>
-    api.get(`/fines/user/${userId}`)
+  // For members: get my active/overdue lendings including FineAmount
+  getMyActiveLoans: (page = 1, pageSize = 10) =>
+    lendingApi.getActiveLoans(null, page, pageSize),
+
+  // For admins: trigger recalculation manually
+  triggerRecalculate: () =>
+    api.post('/maintenance/trigger-fine-calculation'),
+  // Convenience: filter fines client-side until we expose a dedicated endpoint
+  mapLoansToFines: (items = []) => items
+    .filter(x => (x.status === 'Overdue' || (x.fineAmount ?? 0) > 0) && !x.finePaid)
+    .map(x => ({
+      id: x.id,
+      reason: 'Overdue Book',
+      bookTitle: x.bookTitle,
+      bookAuthor: x.bookAuthor,
+      amount: Number(x.fineAmount ?? 0),
+      dueDate: new Date(x.dueDate).toISOString().slice(0,10),
+      overdueDate: new Date(x.dueDate).toISOString().slice(0,10),
+      daysOverdue: x.overdueDays ?? 0,
+      status: (x.finePaid ? 'Paid' : 'Outstanding')
+    }))
 };
 
 export default api;

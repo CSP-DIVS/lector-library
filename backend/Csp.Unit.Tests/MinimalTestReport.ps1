@@ -127,9 +127,10 @@ try {
 # Process test results
 $results = $testResults.TestRun.Results.UnitTestResult
 $groupedResults = $results | Group-Object { 
-    $parts = $_.testName -split '\.'
-    # Extract class name from full test name (e.g., "Csp.Unit.Tests.BooksControllerTests.MethodName" -> "BooksControllerTests")
-    if ($parts.Length -ge 4) { $parts[3] } else { $parts[-2] }
+    # Extract class name using a regex that stops at the first dot after the class
+    # This avoids mis-parsing decimal numbers in [Theory] parameter values like 0.25
+    $m = [regex]::Match($_.testName, '^[^.]+\.(?<namespace>.+?)\.(?<class>[^.]+)\.')
+    if ($m.Success) { $m.Groups['class'].Value } else { $_.testName }
 }
 
 # Count tests by priority
@@ -311,9 +312,13 @@ if ($failed -gt 0) {
 "@
     
     foreach ($failedTest in $failedTests) {
-        $parts = $failedTest.testName -split '\.'
-        $testClass = if ($parts.Length -ge 4) { $parts[3] } else { $parts[-2] }
-        $testMethodName = $parts[-1]
+        # Determine class name robustly
+        $m = [regex]::Match($failedTest.testName, '^[^.]+\.(?<namespace>.+?)\.(?<class>[^.]+)\.')
+        $testClass = if ($m.Success) { $m.Groups['class'].Value } else { $failedTest.testName }
+        # Derive method+params by taking substring after "<Class>."
+        $needle = "$testClass."
+        $idx = $failedTest.testName.IndexOf($needle)
+        $testMethodName = if ($idx -ge 0) { $failedTest.testName.Substring($idx + $needle.Length) } else { $failedTest.testName }
         $testDuration = if ($failedTest.duration) { $failedTest.duration } else { "N/A" }
         $priority = Get-TestPriority $failedTest.testName
         
@@ -361,8 +366,10 @@ foreach ($group in $groupedResults) {
     
     foreach ($test in $tests) {
         $outcome = $test.outcome.ToLower()
-        $parts = $test.testName -split '\.'
-        $testMethodName = $parts[-1]
+        # Compute method name by substring after class header to preserve theory parameters (including decimals)
+        $needle = "$className."
+        $idx = $test.testName.IndexOf($needle)
+        $testMethodName = if ($idx -ge 0) { $test.testName.Substring($idx + $needle.Length) } else { $test.testName }
         $testDuration = if ($test.duration) { $test.duration } else { "N/A" }
         $statusText = $outcome.ToUpper()
         $priority = Get-TestPriority $test.testName

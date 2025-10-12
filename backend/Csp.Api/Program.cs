@@ -16,6 +16,8 @@ builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<ILendingService, LendingService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IFineCalculationService, FineCalculationService>();
+builder.Services.AddHostedService<FineCalculationHostedService>();
 
 var jwtValidation = new JwtTokenService(builder.Configuration).GetValidationParameters();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
