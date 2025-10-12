@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import api from '../lib/api';
+import api, { finesApi } from '../lib/api';
 import StatusBadge from './ui/StatusBadge';
 import Modal from './ui/Modal';
 import Button from './ui/Button';
 import { toast } from './ui/Toast';
 import './MemberManagement.css';
+import AdjustFineModal from './ui/AdjustFineModal';
 
 const MemberManagement = ({ user }) => {
   const [items, setItems] = useState([]);
@@ -26,6 +27,10 @@ const MemberManagement = ({ user }) => {
   const [confirm, setConfirm] = useState({ open: false, target: null });
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Inline fines panel state
+  const [expanded, setExpanded] = useState({}); // userId -> boolean
+  const [userFines, setUserFines] = useState({}); // userId -> fines[]
+  const [adjustFineModal, setAdjustFineModal] = useState({ isOpen: false, fine: null, userId: null });
 
   const roles = ['Administrator', 'Librarian', 'Member'];
   
@@ -168,6 +173,74 @@ const MemberManagement = ({ user }) => {
       case 'Member': return '#16a34a';
       default: return '#6b7280';
     }
+  };
+
+  // Load real fines data from API
+  const loadUserFines = async (userId) => {
+    try {
+      const response = await finesApi.getUserFines(userId);
+      return response.data.map(fine => ({
+        id: fine.lendingId,
+        lendingId: fine.lendingId,
+        reason: fine.status === 'Overdue' ? 'Overdue Book' : 'Late Return Fee',
+        bookTitle: fine.bookTitle,
+        bookAuthor: fine.bookAuthor,
+        memberName: items.find(u => u.id === userId)?.username || 'Unknown',
+        amount: fine.fineAmount,
+        dueDate: fine.dueDate.split('T')[0], // Format date
+        borrowDate: fine.borrowDate.split('T')[0], // Format date
+        daysOverdue: fine.overdueDays,
+        status: fine.finePaid ? 'Paid' : 'Outstanding'
+      }));
+    } catch (error) {
+      console.error('Error loading user fines:', error);
+      // Return empty array if API fails
+      return [];
+    }
+  };
+
+  const toggleFinesPanel = async (u) => {
+    setExpanded(prev => ({ ...prev, [u.id]: !prev[u.id] }));
+    
+    // Load fines when expanding if not already cached
+    if (!expanded[u.id] && !userFines[u.id]) {
+      const fines = await loadUserFines(u.id);
+      setUserFines(prev => ({ ...prev, [u.id]: fines }));
+    }
+  };
+
+  const handleOpenAdjustFine = (fine, userId) => {
+    setAdjustFineModal({ isOpen: true, fine, userId });
+  };
+
+  const handleAdjustFineSubmit = async (lendingId, adjustmentData) => {
+    const uid = adjustFineModal.userId;
+    try {
+      const response = await finesApi.adjustFine(lendingId, adjustmentData);
+      if (response.data?.success) {
+        // Update local inline fines state
+        setUserFines(prev => ({
+          ...prev,
+          [uid]: (prev[uid] || []).map(f =>
+            f.id === lendingId
+              ? {
+                  ...f,
+                  amount: adjustmentData.newAmount,
+                  status: adjustmentData.newAmount === 0 ? 'Paid' : f.status
+                }
+              : f
+          )
+        }));
+        toast({ title: 'Success', message: response.data.message || 'Fine updated', color: 'var(--color-success)' });
+      }
+    } catch (error) {
+      // Let modal surface the error message via throw
+      throw error;
+    }
+  };
+
+  const closeAdjustFineModal = () => {
+    setAdjustFineModal({ isOpen: false, fine: null, userId: null });
   };
 
   return (
@@ -352,53 +425,106 @@ const MemberManagement = ({ user }) => {
               </tr>
             </thead>
             <tbody>
-              {items.map(user => (
-                <tr key={user.id}>
+              {items.map(u => (
+                <>
+                <tr key={u.id}>
                   <td>
                     <div className="user-info">
                       <div className="user-avatar">
-                        {(user.firstName?.[0] || user.username?.[0] || '?').toUpperCase()}
+                        {(u.firstName?.[0] || u.username?.[0] || '?').toUpperCase()}
                       </div>
                       <div className="user-details">
                         <div className="user-name">
-                          {user.username}
+                          {u.username}
                         </div>
-                        <div className="user-id">ID: {user.id}</div>
+                        <div className="user-id">ID: {u.id}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="username-cell">{user.username}</td>
-                  <td className="email-cell">{user.email}</td>
+                  <td className="username-cell">{u.username}</td>
+                  <td className="email-cell">{u.email}</td>
                   <td>
                     <span 
                       className="role-badge" 
-                      style={{ backgroundColor: getRoleBadgeColor(user.role) }}
+                      style={{ backgroundColor: getRoleBadgeColor(u.role) }}
                     >
-                      {user.role}
+                      {u.role}
                     </span>
                   </td>
                   <td>
-                    <StatusBadge active={user.isActive} />
+                    <StatusBadge active={u.isActive} />
                   </td>
                   <td>
                     <div className="action-buttons">
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => startEdit(user)}
+                        onClick={() => startEdit(u)}
                       >
                         Edit
                       </Button>
                       <Button 
-                        variant={user.isActive ? 'danger' : 'primary'} 
+                        variant={u.isActive ? 'danger' : 'primary'} 
                         size="sm"
-                        onClick={() => setConfirm({ open: true, target: user })}
+                        onClick={() => setConfirm({ open: true, target: u })}
                       >
-                        {user.isActive ? 'Deactivate' : 'Activate'}
+                        {u.isActive ? 'Deactivate' : 'Activate'}
                       </Button>
+                      {/* Admin-only: inline fines panel toggle */}
+                      {user?.role === 'Administrator' && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => toggleFinesPanel(u)}
+                        >
+                          {expanded[u.id] ? 'Hide Fines' : 'View Fines'}
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
+                {expanded[u.id] && (
+                  <tr key={`${u.id}-fines`}>
+                    <td colSpan={6}>
+                      <div className="member-fines-panel" style={{ padding: '12px 16px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                        <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                          <h4 style={{ margin: 0 }}>Fines for {u.username}</h4>
+                        </div>
+                        <div className="fines-inline-list" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {(userFines[u.id] || []).map(f => (
+                            <div key={f.id} className="fine-inline-card" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: 12, border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                              <div className="fine-inline-info" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                <strong>{f.reason}</strong>
+                                <span>{f.bookTitle} by {f.bookAuthor}</span>
+                                <span>Status: {f.status}</span>
+                                <span>Due: {f.dueDate} • Overdue since: {f.overdueDate} • {f.daysOverdue} days</span>
+                              </div>
+                              <div className="fine-inline-actions" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ textAlign: 'right', marginRight: 8 }}>
+                                  <div className="amount-label" style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Amount</div>
+                                  <div className="amount-value" style={{ fontWeight: 700, color: 'var(--color-error)' }}>${f.amount.toFixed(2)}</div>
+                                </div>
+                                {user?.role === 'Administrator' && f.status === 'Outstanding' && (
+                                  <Button 
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => handleOpenAdjustFine(f, u.id)}
+                                  >
+                                    Adjust Fine
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {(userFines[u.id] || []).length === 0 && (
+                            <div style={{ color: 'var(--color-text-secondary)' }}>No fines found for this member.</div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </>
               ))}
             </tbody>
           </table>
@@ -416,9 +542,9 @@ const MemberManagement = ({ user }) => {
       {/* Pagination */}
       {total > pageSize && (
         <div className="pagination">
-          <Button 
+          <Button
             variant="outline"
-            disabled={page === 1} 
+            disabled={page === 1}
             onClick={() => setPage(p => p - 1)}
           >
             Previous
@@ -426,9 +552,9 @@ const MemberManagement = ({ user }) => {
           <span className="pagination-info">
             Page {page} of {Math.ceil(total / pageSize)} • {total} total users
           </span>
-          <Button 
+          <Button
             variant="outline"
-            disabled={(page * pageSize) >= total} 
+            disabled={(page * pageSize) >= total}
             onClick={() => setPage(p => p + 1)}
           >
             Next
@@ -437,37 +563,37 @@ const MemberManagement = ({ user }) => {
       )}
 
       {/* Confirmation Modal */}
-      <Modal 
-        open={confirm.open} 
-        onClose={() => setConfirm({ open: false, target: null })} 
+      <Modal
+        open={confirm.open}
+        onClose={() => setConfirm({ open: false, target: null })}
         title={`${confirm.target?.isActive ? 'Deactivate' : 'Activate'} User`}
         footer={[
-          <Button 
-            key="cancel" 
-            variant="outline" 
+          <Button
+            key="cancel"
+            variant="outline"
             onClick={() => setConfirm({ open: false, target: null })}
           >
             Cancel
           </Button>,
-          <Button 
-            key="ok" 
-            variant={confirm.target?.isActive ? 'danger' : 'primary'} 
+          <Button
+            key="ok"
+            variant={confirm.target?.isActive ? 'danger' : 'primary'}
             onClick={async () => {
-              const user = confirm.target;
-              if (!user) return;
-              
+              const userTarget = confirm.target;
+              if (!userTarget) return;
+
               const prev = [...items];
-              setItems(prev.map(x => x.id === user.id ? { ...x, isActive: !user.isActive } : x));
+              setItems(prev.map(x => x.id === userTarget.id ? { ...x, isActive: !userTarget.isActive } : x));
               setConfirm({ open: false, target: null });
-              
+
               try {
-                await api.put(`/users/${user.id}/status`, null, { 
-                  params: { isActive: !user.isActive } 
+                await api.put(`/users/${userTarget.id}/status`, null, {
+                  params: { isActive: !userTarget.isActive }
                 });
-                toast({ 
-                  title: 'Success', 
-                  message: `User ${user.isActive ? 'deactivated' : 'activated'}`, 
-                  color: 'var(--color-success)' 
+                toast({
+                  title: 'Success',
+                  message: `User ${userTarget.isActive ? 'deactivated' : 'activated'}`,
+                  color: 'var(--color-success)'
                 });
               } catch (e) {
                 setItems(prev);
@@ -482,10 +608,18 @@ const MemberManagement = ({ user }) => {
         ]}
       >
         <p style={{ color: 'var(--color-text)', fontSize: '1rem', lineHeight: '1.5' }}>
-          Are you sure you want to {confirm.target?.isActive ? 'deactivate' : 'activate'} this user? 
+          Are you sure you want to {confirm.target?.isActive ? 'deactivate' : 'activate'} this user?
           {confirm.target?.isActive && ' This will prevent them from accessing the system.'}
         </p>
       </Modal>
+
+      {/* Adjust Fine Modal for inline fines */}
+      <AdjustFineModal
+        isOpen={adjustFineModal.isOpen}
+        onClose={closeAdjustFineModal}
+        fine={adjustFineModal.fine}
+        onAdjustFine={handleAdjustFineSubmit}
+      />
     </div>
   );
 };

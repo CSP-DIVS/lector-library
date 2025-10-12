@@ -74,6 +74,21 @@ namespace Csp.Api.DTOs
         public LendingDto? Lending { get; set; }
     }
 
+    public class UserFineDto
+    {
+        public int LendingId { get; set; }
+        public int BookId { get; set; }
+        public string BookTitle { get; set; } = string.Empty;
+        public string BookAuthor { get; set; } = string.Empty;
+        public DateTime BorrowDate { get; set; }
+        public DateTime DueDate { get; set; }
+        public DateTime? ReturnDate { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public decimal FineAmount { get; set; }
+        public bool FinePaid { get; set; }
+        public int OverdueDays { get; set; }
+    }
+
     // Reservation DTOs
     public class ReservationDto
     {

@@ -30,6 +30,14 @@ namespace Csp.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("user/{userId}")]
+        [Authorize(Policy = "RequireAdmin")]
+        public async Task<ActionResult<List<UserFineDto>>> GetUserFines(int userId)
+        {
+            var fines = await _lendingService.GetUserFinesAsync(userId);
+            return Ok(fines);
+        }
+
         private int GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

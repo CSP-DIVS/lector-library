@@ -15,6 +15,7 @@ namespace Csp.Api.Services
         Task<LendingDto?> GetLendingByIdAsync(int id);
         Task InitializeLendingTablesAsync();
         Task<AdjustFineResponse> AdjustFineAsync(int lendingId, AdjustFineRequest request, int adminUserId);
+        Task<List<UserFineDto>> GetUserFinesAsync(int userId);
     }
 
     public class LendingService : ILendingService
@@ -581,6 +582,40 @@ namespace Csp.Api.Services
                 IsOverdue = isOverdue,
                 OverdueDays = isOverdue ? overdueDays : null
             };
+        }
+
+        public async Task<List<UserFineDto>> GetUserFinesAsync(int userId)
+        {
+            var fines = new List<UserFineDto>();
+
+            await using var conn = new MySqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            var sql = SqlQueryLoader.LoadQuery("Lendings", "GetUserFines");
+
+            await using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                fines.Add(new UserFineDto
+                {
+                    LendingId = reader.GetInt32(0), // LendingId
+                    BookId = reader.GetInt32(1), // BookId
+                    BookTitle = reader.GetString(2), // BookTitle
+                    BookAuthor = reader.GetString(3), // BookAuthor
+                    BorrowDate = reader.GetDateTime(4), // BorrowDate
+                    DueDate = reader.GetDateTime(5), // DueDate
+                    ReturnDate = reader.IsDBNull(6) ? null : reader.GetDateTime(6), // ReturnDate
+                    Status = reader.GetString(7), // Status
+                    FineAmount = reader.GetDecimal(8), // FineAmount
+                    FinePaid = reader.GetBoolean(9), // FinePaid
+                    OverdueDays = reader.GetInt32(10) // OverdueDays
+                });
+            }
+
+            return fines;
         }
     }
 }
