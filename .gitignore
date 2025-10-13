@@ -770,3 +770,6 @@ qa/mock-apis/package-lock.json
 
 # Local environment settings
 backend/Csp.Api/appsettings.Development.json
+
+# Local only test data for fines
+backend/Csp.Api/Data/Lendings/test_data_for_fines.sql

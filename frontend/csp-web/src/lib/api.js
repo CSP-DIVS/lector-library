@@ -58,12 +58,6 @@ export const lendingApi = {
 
 // Reservation API functions
 export const reservationApi = {
-  // Legacy endpoints (if present on backend)
-  adjustFine: (lendingId, adjustmentData) => 
-    api.put(`/fines/${lendingId}/adjust`, adjustmentData),
-  getUserFines: (userId) =>
-    api.get(`/fines/user/${userId}`),
-
   fulfillReservation: (reservationId, loanDurationDays = 14) => 
     api.post('/reservations/fulfill', { reservationId, loanDurationDays }),
   
@@ -79,6 +73,14 @@ export const reservationApi = {
 
 // Fines API functions
 export const finesApi = {
+  // Adjust/waive a fine for a lending record
+  adjustFine: (lendingId, adjustmentData) =>
+    api.put(`/fines/${lendingId}/adjust`, adjustmentData),
+
+  // Legacy endpoint: get fines for a specific user (if backend provides it)
+  getUserFines: (userId) =>
+    api.get(`/fines/user/${userId}`),
+
   // For members: get my active/overdue lendings including FineAmount
   getMyActiveLoans: (page = 1, pageSize = 10) =>
     lendingApi.getActiveLoans(null, page, pageSize),

@@ -176,7 +176,7 @@ const AdjustFineModal = ({
         </div>
       </form>
 
-      <style jsx>{`
+      <style>{`
         .adjust-fine-form {
           max-width: 500px;
         }

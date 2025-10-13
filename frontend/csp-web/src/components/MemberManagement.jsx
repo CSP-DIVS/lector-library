@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, Fragment } from 'react';
 import api, { finesApi } from '../lib/api';
 import StatusBadge from './ui/StatusBadge';
 import Modal from './ui/Modal';
@@ -179,7 +179,8 @@ const MemberManagement = ({ user }) => {
   const loadUserFines = async (userId) => {
     try {
       const response = await finesApi.getUserFines(userId);
-      return response.data.map(fine => ({
+      const data = Array.isArray(response?.data) ? response.data : (response?.data?.items || []);
+      return data.map(fine => ({
         id: fine.lendingId,
         lendingId: fine.lendingId,
         reason: fine.status === 'Overdue' ? 'Overdue Book' : 'Late Return Fee',
@@ -426,7 +427,7 @@ const MemberManagement = ({ user }) => {
             </thead>
             <tbody>
               {items.map(u => (
-                <>
+                <Fragment key={`row-${u.id}`}>
                 <tr key={u.id}>
                   <td>
                     <div className="user-info">
@@ -524,7 +525,7 @@ const MemberManagement = ({ user }) => {
                     </td>
                   </tr>
                 )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

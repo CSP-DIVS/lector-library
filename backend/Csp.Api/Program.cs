@@ -4,8 +4,64 @@ using Csp.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using DotNetEnv;
+
+// Load environment variables from .env file (Development only)
+// In production (Azure), environment variables are set through Azure Configuration
+var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+var isDevelopment = environment.Equals("Development", StringComparison.OrdinalIgnoreCase);
+
+if (isDevelopment)
+{
+    try
+    {
+        var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+        if (File.Exists(envPath))
+        {
+            Env.Load(envPath);
+            Console.WriteLine($"[DEV] Loaded environment variables from: {envPath}");
+        }
+        else
+        {
+            Console.WriteLine($"[DEV] .env file not found at: {envPath} - using system environment variables");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[DEV] Warning: Could not load .env file: {ex.Message}");
+        Console.WriteLine("[DEV] Continuing with system environment variables...");
+    }
+}
+else
+{
+    Console.WriteLine($"[{environment}] Using Azure/system environment variables (no .env file loading)");
+}
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add environment variable configuration source to replace placeholders
+builder.Configuration.AddEnvironmentVariables();
+
+// Manually expand environment variables in connection string for development
+if (isDevelopment)
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (!string.IsNullOrEmpty(connectionString))
+    {
+        // Replace placeholders with actual environment variable values
+        connectionString = connectionString
+            .Replace("{DB_HOST}", Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost")
+            .Replace("{DB_PORT}", Environment.GetEnvironmentVariable("DB_PORT") ?? "3306")
+            .Replace("{DB_NAME}", Environment.GetEnvironmentVariable("DB_NAME") ?? "lector-library")
+            .Replace("{DB_USER}", Environment.GetEnvironmentVariable("DB_USER") ?? "root")
+            .Replace("{DB_PASSWORD}", Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "");
+
+        // Update the configuration with the expanded connection string
+        builder.Configuration["ConnectionStrings:DefaultConnection"] = connectionString;
+        Console.WriteLine($"[DEV] Expanded connection string: {connectionString.Replace(Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "", "***")}");
+    }
+}
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -33,7 +89,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 // CORS for production and local React dev server
-var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? 
+var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ??
     new[] { "http://localhost:5173", "http://localhost:3000", "https://lms-cyf6d5f2fqhvf7b3.southindia-01.azurewebsites.net" };
 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
@@ -51,10 +107,10 @@ using (var scope = app.Services.CreateScope())
 {
     var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
     await userService.InitializeDatabaseAsync();
-    
+
     var lendingService = scope.ServiceProvider.GetRequiredService<ILendingService>();
     await lendingService.InitializeLendingTablesAsync();
-    
+
     var reservationService = scope.ServiceProvider.GetRequiredService<IReservationService>();
     await reservationService.InitializeReservationTablesAsync();
 }
@@ -81,7 +137,7 @@ app.MapGet("/api/health/db", async () =>
         {
             return Results.Problem("Connection string not found");
         }
-        
+
         await using var conn = new MySqlConnection(connectionString);
         await conn.OpenAsync();
         await using var cmd = new MySqlCommand("SELECT 1", conn);
@@ -103,11 +159,12 @@ app.MapFallback(async (HttpContext context) =>
         context.Response.StatusCode = 404;
         return;
     }
-    
+
     // Serve index.html for all other routes (SPA routing)
     await context.Response.SendFileAsync("wwwroot/index.html");
 });
 
 app.Run();
 
+// The partial Program class is declared here to enable integration testing with WebApplicationFactory in test projects.
 public partial class Program { }

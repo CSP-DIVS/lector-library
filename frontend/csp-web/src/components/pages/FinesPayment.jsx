@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { finesApi, lendingApi } from '../../lib/api';
 import './FinesPayment.css';
 import AdjustFineModal from '../ui/AdjustFineModal';
-import { finesApi } from '../../lib/api';
 
 const FinesPayment = ({ user }) => {
   const [fines, setFines] = useState([]);

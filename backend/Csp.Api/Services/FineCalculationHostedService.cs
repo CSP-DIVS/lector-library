@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Csp.Api.Services
 {
@@ -13,16 +14,16 @@ namespace Csp.Api.Services
     public class FineCalculationHostedService : BackgroundService
     {
         private readonly ILogger<FineCalculationHostedService> _logger;
-        private readonly IFineCalculationService _fineService;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly IConfiguration _configuration;
 
         public FineCalculationHostedService(
             ILogger<FineCalculationHostedService> logger,
-            IFineCalculationService fineService,
+            IServiceScopeFactory scopeFactory,
             IConfiguration configuration)
         {
             _logger = logger;
-            _fineService = fineService;
+            _scopeFactory = scopeFactory;
             _configuration = configuration;
         }
 
@@ -54,7 +55,9 @@ namespace Csp.Api.Services
         {
             try
             {
-                var affected = await _fineService.CalculateOverdueFinesAsync();
+                using var scope = _scopeFactory.CreateScope();
+                var fineService = scope.ServiceProvider.GetRequiredService<IFineCalculationService>();
+                var affected = await fineService.CalculateOverdueFinesAsync();
                 _logger.LogInformation("Fine calculation completed. Rows affected: {Affected}", affected);
             }
             catch (Exception ex)

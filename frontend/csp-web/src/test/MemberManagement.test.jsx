@@ -14,6 +14,7 @@ vi.mock('../lib/api', () => ({
   },
   finesApi: {
     adjustFine: vi.fn(),
+    getUserFines: vi.fn().mockResolvedValue({ data: [] }),
   },
 }));
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import FinesPayment from '../../components/pages/FinesPayment'
-import * as api from '../../lib/api'
+import FinesPayment from '../components/pages/FinesPayment.jsx'
+import * as api from '../lib/api'
 
 const userMember = { id: 1, role: 'Member' }
 const userAdmin = { id: 2, role: 'Administrator' }
@@ -25,9 +25,11 @@ describe('FinesPayment', () => {
 
     expect(await screen.findByText('My Fines & Payments')).toBeInTheDocument()
     await waitFor(() => {
-      expect(screen.getByText('Outstanding Fines')).toBeInTheDocument()
+      // Heading may appear twice (tab label + section header)
+      expect(screen.getAllByText('Outstanding Fines').length).toBeGreaterThan(0)
       expect(screen.getByText('Book A')).toBeInTheDocument()
-      expect(screen.getByText('$1.50')).toBeInTheDocument()
+      // Amount can appear in summary and item; ensure at least one match
+      expect(screen.getAllByText('$1.50').length).toBeGreaterThan(0)
     })
   })
 
@@ -39,7 +41,7 @@ describe('FinesPayment', () => {
     expect(await screen.findByText('My Fines & Payments')).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByText('To Kill a Mockingbird')).toBeInTheDocument()
-      expect(screen.getByText('$3.50')).toBeInTheDocument()
+      expect(screen.getAllByText('$3.50').length).toBeGreaterThan(0)
     })
   })
 
