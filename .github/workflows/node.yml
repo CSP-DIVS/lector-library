@@ -9,7 +9,7 @@ jobs:
         with: { node-version: '20' }
       - name: Install
         working-directory: frontend/csp-web
-        run: npm ci || npm install --legacy-peer-deps
+        run: npm ci || npm install
       - name: Build
         working-directory: frontend/csp-web
         run: npm run build
