@@ -92,11 +92,19 @@ Configure API base URL with `VITE_API_BASE` (defaults to http://localhost:5192).
 
 ## Testing
 ### Unit/Integration
+**Prerequisites**: Docker Desktop must be installed and running.
+
 ```
-cd backend/Csp.Api.Tests
+cd backend/Csp.Integration.Tests
 dotnet test
 ```
-Includes hashing/verification, JWT generation/validation, validators, and API slice tests with a test auth scheme.
+
+Integration tests use Testcontainers to spin up isolated MySQL instances in Docker, ensuring:
+- Clean database state for each test run
+- No conflicts with local development databases
+- Consistent test environment across all machines
+
+Download Docker Desktop: https://www.docker.com/products/docker-desktop
 
 ### End‑to‑End (Selenium)
 Requires Chrome installed.

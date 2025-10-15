@@ -191,7 +191,21 @@ const FinesPayment = ({ user }) => {
                         <span className="book-author">by {fine.bookAuthor}</span>
                       </div>
                       {user.role !== 'Member' && (
-                        <p className="member-name">Member: {fine.memberName}</p>
+                        <div className="member-info">
+                          <p className="member-name">
+                            <strong>Member:</strong> {fine.memberName}
+                          </p>
+                          {fine.memberEmail && (
+                            <p className="member-email">
+                              <strong>Email:</strong> {fine.memberEmail}
+                            </p>
+                          )}
+                          {fine.memberId && (
+                            <p className="member-id">
+                              <strong>ID:</strong> {fine.memberId}
+                            </p>
+                          )}
+                        </div>
                       )}
                       
                       <div className="fine-dates">
