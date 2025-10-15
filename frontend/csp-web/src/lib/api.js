@@ -93,15 +93,38 @@ export const finesApi = {
     .filter(x => (x.status === 'Overdue' || (x.fineAmount ?? 0) > 0) && !x.finePaid)
     .map(x => ({
       id: x.id,
+      lendingId: x.id,
+      memberId: x.userId,
+      memberName: x.username || 'Unknown Member',
+      memberEmail: x.email,
       reason: 'Overdue Book',
-      bookTitle: x.bookTitle,
-      bookAuthor: x.bookAuthor,
+      bookTitle: x.bookTitle || x.title,
+      bookAuthor: x.bookAuthor || x.author,
       amount: Number(x.fineAmount ?? 0),
       dueDate: new Date(x.dueDate).toISOString().slice(0,10),
       overdueDate: new Date(x.dueDate).toISOString().slice(0,10),
       daysOverdue: x.overdueDays ?? 0,
       status: (x.finePaid ? 'Paid' : 'Outstanding')
     }))
+};
+
+// Payment API functions
+export const paymentApi = {
+  // Record a payment for a lending fine
+  recordPayment: (paymentData) =>
+    api.post('/payments/record', paymentData),
+
+  // Get payment history with optional filters
+  getPaymentHistory: (params = {}) =>
+    api.get('/payments/history', { params }),
+
+  // Get all payments for a specific member
+  getMemberPayments: (memberId) =>
+    api.get(`/payments/member/${memberId}`),
+
+  // Get total amount paid for a specific lending
+  getLendingTotalPaid: (lendingId) =>
+    api.get(`/payments/lending/${lendingId}/total`)
 };
 
 export default api;

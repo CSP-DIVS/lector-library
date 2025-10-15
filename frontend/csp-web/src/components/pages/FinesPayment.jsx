@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { finesApi, lendingApi } from '../../lib/api';
+import { finesApi, lendingApi, paymentApi } from '../../lib/api';
 import './FinesPayment.css';
 import AdjustFineModal from '../ui/AdjustFineModal';
 
@@ -25,8 +25,17 @@ const FinesPayment = ({ user }) => {
       const items = res.data.items || res.data || [];
       const mapped = finesApi.mapLoansToFines(items);
       setFines(mapped);
-      // Payments are not implemented yet; keep an empty history for now
-      setPaymentHistory([]);
+      
+      // Fetch payment history
+      try {
+        const paymentRes = await paymentApi.getPaymentHistory();
+        // Backend returns PaymentHistoryResponse with 'payments' property (lowercase 'p')
+        const payments = paymentRes.data.payments || paymentRes.data.Payments || [];
+        setPaymentHistory(payments);
+      } catch (paymentError) {
+        console.warn('Could not fetch payment history:', paymentError);
+        setPaymentHistory([]);
+      }
     } catch (error) {
       console.error('Error fetching fines data:', error);
       // Fallback to mock data for dev convenience
@@ -245,57 +254,78 @@ const FinesPayment = ({ user }) => {
               <h2>Payment History</h2>
             </div>
             
-            <div className="payments-list">
-              {paymentHistory.map(payment => (
-                <div key={payment.id} className="payment-card">
-                  <div className="payment-info">
-                    <div className="payment-header">
-                      <h3 className="payment-description">{payment.description}</h3>
-                      <span className="payment-amount">${payment.amount.toFixed(2)}</span>
-                    </div>
-                    
-                    <div className="payment-details">
-                      {user.role !== 'Member' && (
-                        <p className="member-name">Member: {payment.memberName}</p>
-                      )}
-                      <div className="payment-meta">
-                        <span className="payment-date">{payment.date}</span>
-                        <span className="payment-method">{payment.method}</span>
-                        <span className="payment-id">ID: {payment.transactionId}</span>
+            {paymentHistory.length > 0 ? (
+              <div className="payments-list">
+                {paymentHistory.map(payment => (
+                  <div key={payment.id} className="payment-card">
+                    <div className="payment-info">
+                      <div className="payment-header">
+                        <h3 className="payment-description">
+                          Payment for Lending #{payment.lendingId || payment.LendingId}
+                        </h3>
+                        <span className="payment-amount">
+                          ${(payment.amount || payment.Amount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      
+                      <div className="payment-details">
+                        {user.role !== 'Member' && (
+                          <p className="member-name">
+                            Member ID: {payment.memberId || payment.MemberId}
+                          </p>
+                        )}
+                        <div className="payment-meta">
+                          <span className="payment-date">
+                            {new Date(payment.paymentDate || payment.PaymentDate).toLocaleDateString()}
+                          </span>
+                          <span className="payment-method">
+                            {payment.paymentMethod || payment.PaymentMethod}
+                          </span>
+                          <span className="payment-id">
+                            ID: {payment.id || payment.Id}
+                          </span>
+                        </div>
+                        {payment.recordedByName && (
+                          <p className="recorded-by">
+                            Recorded by: {payment.recordedByName || payment.RecordedByName}
+                          </p>
+                        )}
                       </div>
                     </div>
+                    
+                    <div className="payment-actions">
+                      <button className="btn btn-outline">View Receipt</button>
+                      {user.role === 'Administrator' && (
+                        <button className="btn btn-outline">Refund</button>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="payment-actions">
-                    <button className="btn btn-outline">View Receipt</button>
-                    {user.role !== 'Member' && (
-                      <button className="btn btn-outline">Refund</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">📄</div>
+                <h3>No payment history</h3>
+                <p>
+                  {user.role === 'Member' 
+                    ? 'No payment history found.'
+                    : 'No payment records found.'
+                  }
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {((activeTab === 'outstanding' && fines.length === 0) || 
-        (activeTab === 'history' && paymentHistory.length === 0)) && (
+      {(activeTab === 'outstanding' && fines.length === 0) && (
         <div className="empty-state">
-          <div className="empty-icon">
-            {activeTab === 'outstanding' ? '💰' : '📄'}
-          </div>
-          <h3>
-            {activeTab === 'outstanding' ? 'No outstanding fines' : 'No payment history'}
-          </h3>
+          <div className="empty-icon">💰</div>
+          <h3>No outstanding fines</h3>
           <p>
             {user.role === 'Member' 
-              ? activeTab === 'outstanding' 
-                ? 'You have no outstanding fines. Keep up the good work!'
-                : 'No payment history found.'
-              : activeTab === 'outstanding'
-                ? 'No fines to manage at this time.'
-                : 'No payment records found.'
+              ? 'You have no outstanding fines. Keep up the good work!'
+              : 'No fines to manage at this time.'
             }
           </p>
         </div>
