@@ -12,11 +12,16 @@ namespace Csp.Api.Controllers
     public class PaymentsController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
+        private readonly IReceiptService _receiptService;
         private readonly ILogger<PaymentsController> _logger;
 
-        public PaymentsController(IPaymentService paymentService, ILogger<PaymentsController> logger)
+        public PaymentsController(
+            IPaymentService paymentService, 
+            IReceiptService receiptService,
+            ILogger<PaymentsController> logger)
         {
             _paymentService = paymentService ?? throw new ArgumentNullException(nameof(paymentService));
+            _receiptService = receiptService ?? throw new ArgumentNullException(nameof(receiptService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -241,6 +246,45 @@ namespace Csp.Api.Controllers
                 timestamp = DateTime.UtcNow,
                 version = "1.0.0"
             });
+        }
+
+        /// <summary>
+        /// Generates and downloads a PDF receipt for a payment (Admin/Librarian only)
+        /// </summary>
+        [HttpGet("{id:int}/receipt")]
+        [Authorize(Policy = "RequireLibrarian")]
+        public async Task<IActionResult> GetPaymentReceipt(int id)
+        {
+            try
+            {
+                if (id <= 0)
+                {
+                    return BadRequest(new { message = "Invalid payment ID" });
+                }
+
+                _logger.LogInformation("Generating receipt for payment {PaymentId}", id);
+
+                // Get receipt data
+                var receiptData = await _receiptService.GetReceiptDataAsync(id);
+                if (receiptData == null)
+                {
+                    _logger.LogWarning("Payment {PaymentId} not found", id);
+                    return NotFound(new { message = "Payment not found" });
+                }
+
+                // Generate PDF
+                var pdfBytes = await _receiptService.GenerateReceiptPdfAsync(receiptData);
+
+                _logger.LogInformation("Receipt generated successfully for payment {PaymentId}", id);
+
+                // Return PDF file
+                return File(pdfBytes, "application/pdf", $"receipt-{receiptData.TransactionId}.pdf");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating receipt for payment {PaymentId}", id);
+                return StatusCode(500, new { message = "An error occurred while generating the receipt" });
+            }
         }
     }
 }

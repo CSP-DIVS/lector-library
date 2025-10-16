@@ -28,10 +28,21 @@ const FinesPayment = ({ user }) => {
       
       // Fetch payment history
       try {
-        const paymentRes = await paymentApi.getPaymentHistory();
-        // Backend returns PaymentHistoryResponse with 'payments' property (lowercase 'p')
-        const payments = paymentRes.data.payments || paymentRes.data.Payments || [];
-        setPaymentHistory(payments);
+        let paymentRes;
+        if (user.role === 'Member') {
+          const memberId = user.id || user.Id;
+          if (memberId) {
+            paymentRes = await paymentApi.getMemberPayments(memberId);
+          }
+        } else {
+          paymentRes = await paymentApi.getPaymentHistory();
+        }
+        if (paymentRes) {
+          const payments = paymentRes.data.payments || paymentRes.data.Payments || [];
+          setPaymentHistory(payments);
+        } else {
+          setPaymentHistory([]);
+        }
       } catch (paymentError) {
         console.warn('Could not fetch payment history:', paymentError);
         setPaymentHistory([]);
@@ -95,6 +106,36 @@ const FinesPayment = ({ user }) => {
       isOpen: false, 
       fine: null 
     });
+  };
+
+  const handleDownloadReceipt = async (paymentId) => {
+    try {
+      const response = await paymentApi.getReceipt(paymentId);
+      
+      // Create a blob from the response
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      
+      // Create a temporary URL for the blob
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `receipt-${paymentId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setToastMessage('Receipt downloaded successfully!');
+      setTimeout(() => setToastMessage(''), 3000);
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+      setToastMessage('Failed to download receipt. Please try again.');
+      setTimeout(() => setToastMessage(''), 4000);
+    }
   };
 
   if (loading) {
@@ -308,7 +349,14 @@ const FinesPayment = ({ user }) => {
                     </div>
                     
                     <div className="payment-actions">
-                      <button className="btn btn-outline">View Receipt</button>
+                      {user.role !== 'Member' && (
+                        <button 
+                          className="btn btn-outline"
+                          onClick={() => handleDownloadReceipt(payment.id || payment.Id)}
+                        >
+                          Download Receipt
+                        </button>
+                      )}
                       {user.role === 'Administrator' && (
                         <button className="btn btn-outline">Refund</button>
                       )}

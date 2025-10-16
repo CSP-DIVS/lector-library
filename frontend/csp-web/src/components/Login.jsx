@@ -26,18 +26,24 @@ const Login = ({ onLoginSuccess }) => {
 
     try {
       const response = await api.post('/auth/login', formData);
-      
-      if (response.data.success) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+      // Support both camelCase and PascalCase from backend
+      const data = response?.data || {};
+      const success = (data.success ?? data.Success) === true;
+      const token = data.token ?? data.Token;
+      const user = data.user ?? data.User;
+      const message = data.message ?? data.Message;
+
+      if (success && token && user) {
+        localStorage.setItem('token', token);
+        localStorage.setItem('user', JSON.stringify(user));
         toast({ title: 'Welcome', message: 'Login successful', color: 'var(--color-success)' });
-        setTimeout(() => onLoginSuccess(response.data.user), 350);
+        setTimeout(() => onLoginSuccess(user), 350);
       } else {
-        setError(response.data.message);
-        toast({ title: 'Login failed', message: response.data.message, color: 'var(--color-error)' });
+        setError(message || 'Login failed');
+        toast({ title: 'Login failed', message: message || 'Invalid credentials', color: 'var(--color-error)' });
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'An error occurred';
+      const msg = err.response?.data?.message || err.response?.data?.Message || 'An error occurred';
       setError(msg);
       toast({ title: 'Error', message: msg, color: 'var(--color-error)' });
     } finally {

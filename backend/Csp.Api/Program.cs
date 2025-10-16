@@ -74,6 +74,7 @@ builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IFineCalculationService, FineCalculationService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IReceiptService, ReceiptService>();
 builder.Services.AddHostedService<FineCalculationHostedService>();
 
 var jwtValidation = new JwtTokenService(builder.Configuration).GetValidationParameters();

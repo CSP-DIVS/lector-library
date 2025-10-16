@@ -112,7 +112,7 @@ export const finesApi = {
 export const paymentApi = {
   // Record a payment for a lending fine
   recordPayment: (paymentData) =>
-    api.post('/payments/record', paymentData),
+    api.post('/payments', paymentData),
 
   // Get payment history with optional filters
   getPaymentHistory: (params = {}) =>
@@ -124,7 +124,13 @@ export const paymentApi = {
 
   // Get total amount paid for a specific lending
   getLendingTotalPaid: (lendingId) =>
-    api.get(`/payments/lending/${lendingId}/total`)
+    api.get(`/payments/total/${lendingId}`),
+
+  // Download receipt PDF for a payment
+  getReceipt: (paymentId) =>
+    api.get(`/payments/${paymentId}/receipt`, {
+      responseType: 'blob' // Important: tells axios to handle binary data
+    })
 };
 
 export default api;
