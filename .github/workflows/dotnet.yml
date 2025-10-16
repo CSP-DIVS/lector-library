@@ -3,6 +3,27 @@ on: [push, pull_request]
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_root_password
+          MYSQL_DATABASE: lector-library
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: lector-library
+      DB_USER: root
+      DB_PASSWORD: test_root_password
+      ASPNETCORE_ENVIRONMENT: Development
+      JWT_SECRET_KEY: test-jwt-secret-key-for-ci-minimum-32-characters-long
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -16,7 +37,7 @@ jobs:
         with:
           timeout_minutes: 10
           max_attempts: 3
-          command: dotnet test lector-library.sln --configuration Release --no-build --verbosity normal --filter "FullyQualifiedName!~Integration"
+          command: dotnet test lector-library.sln --configuration Release --no-build --verbosity normal
       - name: Jira Login
         if: always()
         uses: atlassian/gajira-login@v3
