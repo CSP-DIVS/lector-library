@@ -24,14 +24,16 @@ namespace Csp.Api.Tests.Controllers
     public class PaymentsControllerTests
     {
         private readonly Mock<IPaymentService> _mockPaymentService;
+        private readonly Mock<IReceiptService> _mockReceiptService;
         private readonly Mock<ILogger<PaymentsController>> _mockLogger;
         private readonly PaymentsController _controller;
 
         public PaymentsControllerTests()
         {
             _mockPaymentService = new Mock<IPaymentService>();
+            _mockReceiptService = new Mock<IReceiptService>();
             _mockLogger = new Mock<ILogger<PaymentsController>>();
-            _controller = new PaymentsController(_mockPaymentService.Object, _mockLogger.Object);
+            _controller = new PaymentsController(_mockPaymentService.Object, _mockReceiptService.Object, _mockLogger.Object);
             
             // Setup default HTTP context
             _controller.ControllerContext = new ControllerContext
@@ -47,7 +49,15 @@ namespace Csp.Api.Tests.Controllers
         {
             // Arrange, Act & Assert
             Assert.Throws<ArgumentNullException>(() => 
-                new PaymentsController(null!, _mockLogger.Object));
+                new PaymentsController(null!, _mockReceiptService.Object, _mockLogger.Object));
+        }
+
+        [Fact]
+        public void Constructor_WithNullReceiptService_ThrowsArgumentNullException()
+        {
+            // Arrange, Act & Assert
+            Assert.Throws<ArgumentNullException>(() => 
+                new PaymentsController(_mockPaymentService.Object, null!, _mockLogger.Object));
         }
 
         [Fact]
@@ -55,7 +65,7 @@ namespace Csp.Api.Tests.Controllers
         {
             // Arrange, Act & Assert
             Assert.Throws<ArgumentNullException>(() => 
-                new PaymentsController(_mockPaymentService.Object, null!));
+                new PaymentsController(_mockPaymentService.Object, _mockReceiptService.Object, null!));
         }
 
         #endregion
