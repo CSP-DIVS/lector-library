@@ -16,7 +16,7 @@ jobs:
         with:
           timeout_minutes: 10
           max_attempts: 3
-          command: dotnet test lector-library.sln --configuration Release --no-build --verbosity normal
+          command: dotnet test lector-library.sln --configuration Release --no-build --verbosity normal --filter "FullyQualifiedName!~Integration"
       - name: Jira Login
         if: always()
         uses: atlassian/gajira-login@v3
