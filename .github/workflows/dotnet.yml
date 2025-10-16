@@ -8,9 +8,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
       - name: Restore
-        run: dotnet restore backend/Csp.Api
+        run: dotnet restore lector-library.sln
       - name: Build
-        run: dotnet build --configuration Release --no-restore backend/Csp.Api
+        run: dotnet build lector-library.sln --configuration Release --no-restore
       - name: Test
         uses: nick-invision/retry@v2
         with:
