@@ -44,10 +44,12 @@ namespace Csp.Api.Tests.Integration
             });
 
             _client = _factory.CreateClient();
-            
-            // Note: In real integration tests, these tokens would be obtained through login
-            _adminToken = GetTestToken("Administrator");
-            _memberToken = GetTestToken("Member");
+
+            // Generate valid JWTs using the app's JwtTokenService for CI integration tests
+            using var scope = _factory.Services.CreateScope();
+            var jwt = scope.ServiceProvider.GetRequiredService<Csp.Api.Services.IJwtTokenService>();
+            _adminToken = jwt.GenerateToken(1, "admin", "Administrator");
+            _memberToken = jwt.GenerateToken(2, "member1", "Member");
         }
 
         #region Payment Recording Integration Tests
@@ -431,12 +433,7 @@ namespace Csp.Api.Tests.Integration
             return await _client.GetAsync($"/api/payments/member/{memberId}");
         }
 
-        private string GetTestToken(string role)
-        {
-            // In a real test environment, this would authenticate and get actual JWT tokens
-            // For now, return mock tokens for testing structure
-            return role == "Administrator" ? "admin-test-token" : "member-test-token";
-        }
+        private string GetTestToken(string role) => role == "Administrator" ? _adminToken : _memberToken;
 
         #endregion
 

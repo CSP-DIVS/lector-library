@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Newtonsoft.Json.Linq;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Csp.Api.Tests
 {
@@ -20,7 +21,10 @@ namespace Csp.Api.Tests
         {
             // Arrange: create client and authenticate as admin (replace with real token in real test)
             var client = _factory.CreateClient();
-            client.DefaultRequestHeaders.Add("Authorization", "Bearer test-admin-jwt-token");
+            using var scope = _factory.Services.CreateScope();
+            var jwt = scope.ServiceProvider.GetRequiredService<Csp.Api.Services.IJwtTokenService>();
+            var token = jwt.GenerateToken(1, "admin", "Administrator");
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
 
             // Act
             var response = await client.PostAsync("/api/maintenance/trigger-fine-calculation", null);
