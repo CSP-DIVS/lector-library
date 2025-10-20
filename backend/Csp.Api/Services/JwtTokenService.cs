@@ -23,10 +23,13 @@ namespace Csp.Api.Services
 
         public string GenerateToken(int userId, string username, string role)
         {
-            var secret = configuration["Jwt:Secret"] ?? "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+            // Support both configuration shapes: "Jwt" and older/alternate "JwtSettings"
+            var secret = configuration["Jwt:Secret"] 
+                         ?? configuration["JwtSettings:SecretKey"] 
+                         ?? "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
             if (secret.Length < 32) secret = secret.PadRight(32, '0');
-            var issuer = configuration["Jwt:Issuer"] ?? "csp-api";
-            var audience = configuration["Jwt:Audience"] ?? "csp-web";
+            var issuer = configuration["Jwt:Issuer"] ?? configuration["JwtSettings:Issuer"] ?? "csp-api";
+            var audience = configuration["Jwt:Audience"] ?? configuration["JwtSettings:Audience"] ?? "csp-web";
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -53,10 +56,13 @@ namespace Csp.Api.Services
 
         public TokenValidationParameters GetValidationParameters()
         {
-            var secret = configuration["Jwt:Secret"] ?? "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+            // Support both configuration shapes: "Jwt" and older/alternate "JwtSettings"
+            var secret = configuration["Jwt:Secret"] 
+                         ?? configuration["JwtSettings:SecretKey"] 
+                         ?? "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
             if (secret.Length < 32) secret = secret.PadRight(32, '0');
-            var issuer = configuration["Jwt:Issuer"] ?? "csp-api";
-            var audience = configuration["Jwt:Audience"] ?? "csp-web";
+            var issuer = configuration["Jwt:Issuer"] ?? configuration["JwtSettings:Issuer"] ?? "csp-api";
+            var audience = configuration["Jwt:Audience"] ?? configuration["JwtSettings:Audience"] ?? "csp-web";
 
             return new TokenValidationParameters
             {

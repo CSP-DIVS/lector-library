@@ -22,7 +22,7 @@ services:
       context: ..
       dockerfile: infra/backend.Dockerfile
     environment:
-      - ConnectionStrings__DefaultConnection=Server=db;Port=3306;Database=${MYSQL_DATABASE};Uid=${MYSQL_USER};Pwd=${MYSQL_PASSWORD};
+      - ConnectionStrings__DefaultConnection=Server=db;Port=3306;Database=${MYSQL_DATABASE};Uid=${MYSQL_USER};Pwd=${MYSQL_PASSWORD};SslMode=None;AllowPublicKeyRetrieval=true
       - ASPNETCORE_ENVIRONMENT=Development
     ports:
       - "${API_PORT}:8080"
@@ -31,7 +31,7 @@ services:
         condition: service_healthy
     networks:
       - lector-network
-    restart: on-failure
+    restart: unless-stopped
 
   frontend:
     build:

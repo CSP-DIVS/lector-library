@@ -48,17 +48,44 @@ if (isDevelopment)
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     if (!string.IsNullOrEmpty(connectionString))
     {
-        // Replace placeholders with actual environment variable values
+        // Fetch environment variables once
+        var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
+        var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "3306";
+        var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "lector-library";
+        var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "root";
+        // DB_PASSWORD may be empty or unset. Use null-coalescing to get empty string when absent.
+        var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
+
+        // Replace placeholders with actual environment variable values. Only call Replace for DB_PASSWORD
+        // when a placeholder exists (to avoid calling String.Replace with an empty oldValue).
         connectionString = connectionString
-            .Replace("{DB_HOST}", Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost")
-            .Replace("{DB_PORT}", Environment.GetEnvironmentVariable("DB_PORT") ?? "3306")
-            .Replace("{DB_NAME}", Environment.GetEnvironmentVariable("DB_NAME") ?? "lector-library")
-            .Replace("{DB_USER}", Environment.GetEnvironmentVariable("DB_USER") ?? "root")
-            .Replace("{DB_PASSWORD}", Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "");
+            .Replace("{DB_HOST}", dbHost)
+            .Replace("{DB_PORT}", dbPort)
+            .Replace("{DB_NAME}", dbName)
+            .Replace("{DB_USER}", dbUser);
+
+        if (connectionString.Contains("{DB_PASSWORD}"))
+        {
+            // If dbPassword is null, replace with empty string (no password). If it's non-null, use its value.
+            connectionString = connectionString.Replace("{DB_PASSWORD}", dbPassword ?? "");
+        }
 
         // Update the configuration with the expanded connection string
         builder.Configuration["ConnectionStrings:DefaultConnection"] = connectionString;
-        Console.WriteLine($"[DEV] Expanded connection string: {connectionString.Replace(Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "", "***")}");
+
+        // Log the expanded connection string but never print the actual password. If password is empty, show '(empty)'
+        var sanitized = connectionString;
+        if (dbPassword != null && dbPassword.Length > 0)
+        {
+            sanitized = sanitized.Replace(dbPassword, "***");
+        }
+        else if (connectionString.Contains("password=") || connectionString.Contains("Password="))
+        {
+            // Optional: mask empty password in logs to avoid confusion
+            sanitized = sanitized.Replace("Password=;", "Password=(empty);").Replace("password=;", "password=(empty);");
+        }
+
+        Console.WriteLine($"[DEV] Expanded connection string: {sanitized}");
     }
 }
 
