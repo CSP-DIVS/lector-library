@@ -15,6 +15,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IBookService, BookService>();
 builder.Services.AddScoped<ILendingService, LendingService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
+builder.Services.AddScoped<IFineService, FineService>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
 var jwtValidation = new JwtTokenService(builder.Configuration).GetValidationParameters();
@@ -55,6 +56,9 @@ using (var scope = app.Services.CreateScope())
     
     var reservationService = scope.ServiceProvider.GetRequiredService<IReservationService>();
     await reservationService.InitializeReservationTablesAsync();
+    
+    var fineService = scope.ServiceProvider.GetRequiredService<IFineService>();
+    await fineService.InitializeFineTablesAsync();
 }
 
 // Configure the HTTP request pipeline
