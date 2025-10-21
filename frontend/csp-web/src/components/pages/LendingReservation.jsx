@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { lendingApi, reservationApi } from '../../lib/api';
 import './LendingReservation.css';
 
@@ -136,6 +138,191 @@ const LendingReservation = ({ user }) => {
     setDetailModal({ isOpen: false, type: null, data: null });
   };
 
+  const handleExportLoansReport = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Lector Library Active Loans Report', 105, 20, { align: 'center' });
+      
+      // Add generation date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 28, { align: 'center' });
+      
+      // Add summary statistics
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 14, 40);
+      
+      const overdueLoans = loans.filter(l => l.isOverdue);
+      const totalOverdueDays = overdueLoans.reduce((sum, l) => sum + (l.overdueDays || 0), 0);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Total Active Loans: ${loans.length}`, 14, 48);
+      doc.text(`Overdue Loans: ${overdueLoans.length}`, 14, 54);
+      if (overdueLoans.length > 0) {
+        doc.text(`Total Overdue Days: ${totalOverdueDays}`, 14, 60);
+      }
+      
+      // Prepare table data
+      const tableData = loans.map(loan => [
+        loan.username || 'N/A',
+        loan.bookTitle,
+        loan.bookAuthor,
+        formatDate(loan.borrowDate),
+        formatDate(loan.dueDate),
+        `${loan.renewalCount}/${loan.maxRenewals}`,
+        loan.isOverdue ? `Yes (${loan.overdueDays}d)` : 'No'
+      ]);
+      
+      // Add loans table
+      autoTable(doc, {
+        startY: overdueLoans.length > 0 ? 68 : 62,
+        head: [['Member', 'Book Title', 'Author', 'Borrowed', 'Due Date', 'Renewals', 'Overdue']],
+        body: tableData,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+        },
+        headStyles: {
+          fillColor: [52, 152, 219],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 28 },  // Member
+          1: { cellWidth: 40 },  // Book Title
+          2: { cellWidth: 32 },  // Author
+          3: { cellWidth: 25 },  // Borrowed
+          4: { cellWidth: 25 },  // Due Date
+          5: { cellWidth: 20 },  // Renewals
+          6: { cellWidth: 22 },  // Overdue
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        didDrawPage: (data) => {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          );
+        }
+      });
+      
+      // Save the PDF
+      const fileName = `Active_Loans_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      alert('Loans report exported successfully!');
+    } catch (error) {
+      console.error('Error generating loans report:', error);
+      alert('Failed to generate loans report. Please try again.');
+    }
+  };
+
+  const handleExportReservationsReport = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Pending Reservations Report', 105, 20, { align: 'center' });
+      
+      // Add generation date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 28, { align: 'center' });
+      
+      // Add summary statistics
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 14, 40);
+      
+      const pendingReservations = reservations.filter(r => r.status === 'Pending');
+      const fulfilledToday = reservations.filter(r => {
+        const today = new Date().toDateString();
+        return r.status === 'Fulfilled' && new Date(r.fulfilledAt).toDateString() === today;
+      });
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Total Reservations: ${reservations.length}`, 14, 48);
+      doc.text(`Pending: ${pendingReservations.length}`, 14, 54);
+      doc.text(`Fulfilled Today: ${fulfilledToday.length}`, 14, 60);
+      
+      // Prepare table data
+      const tableData = reservations.map(reservation => [
+        reservation.username || 'N/A',
+        reservation.bookTitle,
+        reservation.bookAuthor,
+        formatDate(reservation.reservationDate),
+        reservation.status,
+        reservation.expiresAt ? formatDate(reservation.expiresAt) : 'N/A'
+      ]);
+      
+      // Add reservations table
+      autoTable(doc, {
+        startY: 68,
+        head: [['Member', 'Book Title', 'Author', 'Reserved On', 'Status', 'Expires']],
+        body: tableData,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+        },
+        headStyles: {
+          fillColor: [155, 89, 182],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 30 },  // Member
+          1: { cellWidth: 45 },  // Book Title
+          2: { cellWidth: 35 },  // Author
+          3: { cellWidth: 28 },  // Reserved On
+          4: { cellWidth: 25 },  // Status
+          5: { cellWidth: 25 },  // Expires
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        didDrawPage: (data) => {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          );
+        }
+      });
+      
+      // Save the PDF
+      const fileName = `Reservations_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      alert('Reservations report exported successfully!');
+    } catch (error) {
+      console.error('Error generating reservations report:', error);
+      alert('Failed to generate reservations report. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -201,6 +388,13 @@ const LendingReservation = ({ user }) => {
               <h2>
                 {user.role === 'Member' ? 'Books on Loan' : 'Active Loans'}
               </h2>
+              {user.role !== 'Member' && loans.length > 0 && (
+                <div className="section-actions">
+                  <button className="btn btn-outline" onClick={handleExportLoansReport}>
+                    Export Report
+                  </button>
+                </div>
+              )}
             </div>
             
             <div className="items-list">
@@ -290,6 +484,13 @@ const LendingReservation = ({ user }) => {
               <h2>
                 {user.role === 'Member' ? 'My Reservations' : 'Pending Reservations'}
               </h2>
+              {user.role !== 'Member' && reservations.length > 0 && (
+                <div className="section-actions">
+                  <button className="btn btn-outline" onClick={handleExportReservationsReport}>
+                    Export Report
+                  </button>
+                </div>
+              )}
             </div>
             
             <div className="items-list">
