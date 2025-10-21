@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import api from '../lib/api';
 import StatusBadge from './ui/StatusBadge';
 import Modal from './ui/Modal';
@@ -170,6 +172,96 @@ const MemberManagement = ({ user }) => {
     }
   };
 
+  const handleExportReport = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Lector Library User Details', 105, 20, { align: 'center' });
+      
+      // Add generation date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 28, { align: 'center' });
+      
+      // Add summary statistics
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 14, 40);
+      
+      const admins = items.filter(u => u.role === 'Administrator');
+      const librarians = items.filter(u => u.role === 'Librarian');
+      const members = items.filter(u => u.role === 'Member');
+      const activeUsers = items.filter(u => u.isActive);
+      const inactiveUsers = items.filter(u => !u.isActive);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Total Users: ${items.length}`, 14, 48);
+      doc.text(`Administrators: ${admins.length}`, 14, 54);
+      doc.text(`Librarians: ${librarians.length}`, 14, 60);
+      doc.text(`Members: ${members.length}`, 14, 66);
+      doc.text(`Active: ${activeUsers.length} | Inactive: ${inactiveUsers.length}`, 14, 72);
+      
+      // Prepare table data
+      const tableData = items.map(user => [
+        user.username,
+        user.email,
+        user.role,
+        user.isActive ? 'Active' : 'Inactive'
+      ]);
+      
+      // Add users table
+      autoTable(doc, {
+        startY: 80,
+        head: [['Username', 'Email', 'Role', 'Status']],
+        body: tableData,
+        theme: 'grid',
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+        },
+        headStyles: {
+          fillColor: [99, 102, 241],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 40 },  // Username
+          1: { cellWidth: 70 },  // Email
+          2: { cellWidth: 35 },  // Role
+          3: { cellWidth: 30 },  // Status
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        didDrawPage: (data) => {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          );
+        }
+      });
+      
+      // Save the PDF
+      const fileName = `User_Management_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      toast.success('Report exported successfully!');
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast.error('Failed to generate report. Please try again.');
+    }
+  };
+
   return (
     <div className="user-management">
       <div className="page-header">
@@ -177,14 +269,24 @@ const MemberManagement = ({ user }) => {
           <h1 className="page-title">User Management</h1>
           <p className="page-description">Manage administrators, librarians, and members</p>
         </div>
-        <Button 
-          variant="primary" 
-          onClick={() => setShowAddForm(true)}
-          className="add-user-btn"
-        >
-          <span className="btn-icon">👤</span>
-          Add New User
-        </Button>
+        <div className="header-actions">
+          <Button 
+            variant="outline" 
+            onClick={handleExportReport}
+            disabled={items.length === 0}
+            className="export-btn"
+          >
+            📄 Export Report
+          </Button>
+          <Button 
+            variant="primary" 
+            onClick={() => setShowAddForm(true)}
+            className="add-user-btn"
+          >
+            <span className="btn-icon">👤</span>
+            Add New User
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
