@@ -57,7 +57,7 @@
 
 .stats-section h2,
 .activities-section h2,
-.quick-actions-section h2 {
+.info-section h2 {
   margin: 0 0 16px 0;
   font-size: 1.25rem;
   font-weight: 600;
@@ -174,49 +174,38 @@
   font-weight: 500;
 }
 
-.quick-actions-section {
+.info-section {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 20px;
 }
 
-.quick-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.info-content {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
-.quick-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-background-secondary);
+.info-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.info-content strong {
   color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-decoration: none;
-}
-
-.quick-action-btn:hover {
-  background: var(--color-primary-light);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  transform: translateY(-1px);
-}
-
-.action-icon {
-  font-size: 1.5rem;
-}
-
-.action-label {
-  font-size: 0.8rem;
   font-weight: 600;
+}
+
+.no-activity {
+  font-style: italic;
+  color: var(--color-text-secondary);
   text-align: center;
+  padding: 12px;
+  background: var(--color-background-secondary);
+  border-radius: 8px;
 }
 
 /* Responsive design */
@@ -247,7 +236,7 @@
     font-size: 1.5rem;
   }
   
-  .quick-actions-grid {
-    grid-template-columns: 1fr;
+  .info-content p {
+    font-size: 0.85rem;
   }
 }
