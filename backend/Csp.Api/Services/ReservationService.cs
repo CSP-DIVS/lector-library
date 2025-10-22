@@ -1,26 +1,87 @@
 using Csp.Api.Models;
 using Csp.Api.DTOs;
+using Csp.Api.Data;
 using MySql.Data.MySqlClient;
 
 namespace Csp.Api.Services
 {
+    /// <summary>
+    /// Interface defining the contract for book reservation operations.
+    /// </summary>
     public interface IReservationService
     {
+        /// <summary>
+        /// Creates a new reservation for a book.
+        /// </summary>
+        /// <param name="request">The reservation request details.</param>
+        /// <returns>A response indicating success or failure with reservation details.</returns>
         Task<ReservationResponse> CreateReservationAsync(CreateReservationRequest request);
+
+        /// <summary>
+        /// Cancels an existing reservation.
+        /// </summary>
+        /// <param name="reservationId">The ID of the reservation to cancel.</param>
+        /// <param name="userId">The ID of the user requesting cancellation for authorization.</param>
+        /// <returns>A response indicating success or failure.</returns>
         Task<ReservationResponse> CancelReservationAsync(int reservationId, int userId);
+
+        /// <summary>
+        /// Fulfills a reservation by converting it to a lending transaction.
+        /// </summary>
+        /// <param name="request">The fulfill reservation request details.</param>
+        /// <returns>A response indicating success or failure with updated details.</returns>
         Task<ReservationResponse> FulfillReservationAsync(FulfillReservationRequest request);
+
+        /// <summary>
+        /// Retrieves a paginated list of reservations for a specific user.
+        /// </summary>
+        /// <param name="userId">The user ID to filter reservations.</param>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing user's reservations.</returns>
         Task<PagedReservationsResponse> GetUserReservationsAsync(int userId, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves a paginated list of all reservations in the system.
+        /// </summary>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing all reservations.</returns>
         Task<PagedReservationsResponse> GetAllReservationsAsync(int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves detailed information about a specific reservation.
+        /// </summary>
+        /// <param name="id">The reservation ID.</param>
+        /// <returns>The reservation details, or null if not found.</returns>
         Task<ReservationDto?> GetReservationByIdAsync(int id);
+
+        /// <summary>
+        /// Initializes the reservation database tables.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         Task InitializeReservationTablesAsync();
     }
 
+    /// <summary>
+    /// Service implementation for managing book reservation operations.
+    /// Handles creating, canceling, fulfilling reservations, and maintains the reservation queue.
+    /// </summary>
     public class ReservationService : IReservationService
     {
         private readonly IConfiguration _configuration;
         private readonly string _connectionString;
-        private const int RESERVATION_EXPIRY_DAYS = 3; // Days to pick up after becoming available
 
+        /// <summary>
+        /// The number of days a user has to pick up a book after it becomes available.
+        /// </summary>
+        private const int RESERVATION_EXPIRY_DAYS = 3;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="ReservationService"/> class.
+        /// </summary>
+        /// <param name="configuration">The application configuration for database connection.</param>
+        /// <exception cref="InvalidOperationException">Thrown when connection string is not found.</exception>
         public ReservationService(IConfiguration configuration)
         {
             _configuration = configuration;
@@ -29,34 +90,28 @@ namespace Csp.Api.Services
                                  ?? throw new InvalidOperationException("Connection string not found");
         }
 
+        /// <summary>
+        /// Initializes the reservation database tables by executing the create table script.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task InitializeReservationTablesAsync()
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var createReservationsTableSql = @"
-                CREATE TABLE IF NOT EXISTS reservations (
-                    Id INT AUTO_INCREMENT PRIMARY KEY,
-                    BookId INT NOT NULL,
-                    UserId INT NOT NULL,
-                    ReservedDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    QueuePosition INT NOT NULL,
-                    Status VARCHAR(20) NOT NULL DEFAULT 'Pending',
-                    AvailableDate DATETIME NULL,
-                    ExpiryDate DATETIME NULL,
-                    FulfilledDate DATETIME NULL,
-                    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    FOREIGN KEY (BookId) REFERENCES books(Id),
-                    FOREIGN KEY (UserId) REFERENCES users(Id),
-                    INDEX idx_book_status (BookId, Status),
-                    INDEX idx_user_status (UserId, Status)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+            var createReservationsTableSql = SqlQueryLoader.LoadQuery("Reservations", "CreateReservationsTable");
 
             await using var cmd = new MySqlCommand(createReservationsTableSql, conn);
             await cmd.ExecuteNonQueryAsync();
         }
 
+        /// <summary>
+        /// Creates a new book reservation for a user.
+        /// Validates book existence, checks for existing loans and reservations, 
+        /// and determines queue position based on available copies.
+        /// </summary>
+        /// <param name="request">The reservation request containing book ID and user ID.</param>
+        /// <returns>A response indicating success or failure with the created reservation details.</returns>
         public async Task<ReservationResponse> CreateReservationAsync(CreateReservationRequest request)
         {
             if (request.BookId <= 0 || request.UserId <= 0)
@@ -75,7 +130,7 @@ namespace Csp.Api.Services
             try
             {
                 // Check if book exists
-                var checkBookSql = "SELECT COUNT(*) FROM books WHERE Id = @BookId AND IsActive = 1";
+                var checkBookSql = SqlQueryLoader.LoadQuery("Reservations", "CheckBookExists");
                 await using var bookCmd = new MySqlCommand(checkBookSql, conn, transaction);
                 bookCmd.Parameters.AddWithValue("@BookId", request.BookId);
                 var bookExists = Convert.ToInt32(await bookCmd.ExecuteScalarAsync()) > 0;
@@ -91,9 +146,7 @@ namespace Csp.Api.Services
                 }
 
                 // Check if user already has an active loan for this book
-                var checkLoanSql = @"
-                    SELECT COUNT(*) FROM lendings 
-                    WHERE BookId = @BookId AND UserId = @UserId AND Status = 'Active'";
+                var checkLoanSql = SqlQueryLoader.LoadQuery("Reservations", "CheckActiveLoan");
                 
                 await using var loanCmd = new MySqlCommand(checkLoanSql, conn, transaction);
                 loanCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -111,9 +164,7 @@ namespace Csp.Api.Services
                 }
 
                 // Check if user already has a reservation for this book
-                var checkReservationSql = @"
-                    SELECT COUNT(*) FROM reservations 
-                    WHERE BookId = @BookId AND UserId = @UserId AND Status IN ('Pending', 'Available')";
+                var checkReservationSql = SqlQueryLoader.LoadQuery("Reservations", "CheckExistingReservation");
                 
                 await using var reservationCmd = new MySqlCommand(checkReservationSql, conn, transaction);
                 reservationCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -131,19 +182,14 @@ namespace Csp.Api.Services
                 }
 
                 // Get queue position (count of pending reservations + 1)
-                var getQueuePositionSql = @"
-                    SELECT COUNT(*) FROM reservations 
-                    WHERE BookId = @BookId AND Status = 'Pending'";
+                var getQueuePositionSql = SqlQueryLoader.LoadQuery("Reservations", "GetQueuePosition");
                 
                 await using var queueCmd = new MySqlCommand(getQueuePositionSql, conn, transaction);
                 queueCmd.Parameters.AddWithValue("@BookId", request.BookId);
                 var queuePosition = Convert.ToInt32(await queueCmd.ExecuteScalarAsync()) + 1;
 
                 // Create reservation
-                var insertReservationSql = @"
-                    INSERT INTO reservations (BookId, UserId, ReservedDate, QueuePosition, Status)
-                    VALUES (@BookId, @UserId, @ReservedDate, @QueuePosition, 'Pending');
-                    SELECT LAST_INSERT_ID();";
+                var insertReservationSql = SqlQueryLoader.LoadQuery("Reservations", "InsertReservation");
                 
                 await using var insertCmd = new MySqlCommand(insertReservationSql, conn, transaction);
                 insertCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -174,6 +220,13 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Cancels an existing reservation and updates the queue positions for remaining reservations.
+        /// Validates user ownership before allowing cancellation.
+        /// </summary>
+        /// <param name="reservationId">The ID of the reservation to cancel.</param>
+        /// <param name="userId">The ID of the user requesting cancellation for ownership verification.</param>
+        /// <returns>A response indicating success or failure of the cancellation.</returns>
         public async Task<ReservationResponse> CancelReservationAsync(int reservationId, int userId)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -183,10 +236,7 @@ namespace Csp.Api.Services
             try
             {
                 // Get reservation details
-                var getReservationSql = @"
-                    SELECT BookId, UserId, Status, QueuePosition 
-                    FROM reservations 
-                    WHERE Id = @ReservationId";
+                var getReservationSql = SqlQueryLoader.LoadQuery("Reservations", "GetReservationForCancel");
                 
                 await using var getCmd = new MySqlCommand(getReservationSql, conn, transaction);
                 getCmd.Parameters.AddWithValue("@ReservationId", reservationId);
@@ -231,10 +281,7 @@ namespace Csp.Api.Services
                 }
 
                 // Cancel reservation
-                var cancelReservationSql = @"
-                    UPDATE reservations 
-                    SET Status = 'Cancelled', UpdatedAt = @UpdatedAt
-                    WHERE Id = @ReservationId";
+                var cancelReservationSql = SqlQueryLoader.LoadQuery("Reservations", "CancelReservation");
                 
                 await using var cancelCmd = new MySqlCommand(cancelReservationSql, conn, transaction);
                 cancelCmd.Parameters.AddWithValue("@ReservationId", reservationId);
@@ -242,10 +289,7 @@ namespace Csp.Api.Services
                 await cancelCmd.ExecuteNonQueryAsync();
 
                 // Update queue positions for remaining reservations
-                var updateQueueSql = @"
-                    UPDATE reservations 
-                    SET QueuePosition = QueuePosition - 1, UpdatedAt = @UpdatedAt
-                    WHERE BookId = @BookId AND Status = 'Pending' AND QueuePosition > @QueuePosition";
+                var updateQueueSql = SqlQueryLoader.LoadQuery("Reservations", "UpdateQueuePositions");
                 
                 await using var updateQueueCmd = new MySqlCommand(updateQueueSql, conn, transaction);
                 updateQueueCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -274,6 +318,12 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Fulfills a reservation by converting it into an active lending transaction.
+        /// Creates a new loan record, decrements available copies, and updates the reservation status.
+        /// </summary>
+        /// <param name="request">The fulfill request containing reservation ID and loan duration.</param>
+        /// <returns>A response indicating success or failure with the updated reservation and lending details.</returns>
         public async Task<ReservationResponse> FulfillReservationAsync(FulfillReservationRequest request)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -283,10 +333,7 @@ namespace Csp.Api.Services
             try
             {
                 // Get reservation details
-                var getReservationSql = @"
-                    SELECT BookId, UserId, Status 
-                    FROM reservations 
-                    WHERE Id = @ReservationId";
+                var getReservationSql = SqlQueryLoader.LoadQuery("Reservations", "GetReservationForFulfill");
                 
                 await using var getCmd = new MySqlCommand(getReservationSql, conn, transaction);
                 getCmd.Parameters.AddWithValue("@ReservationId", request.ReservationId);
@@ -319,7 +366,7 @@ namespace Csp.Api.Services
                 }
 
                 // Check available copies
-                var checkAvailabilitySql = "SELECT AvailableCopies FROM book_inventory WHERE BookId = @BookId";
+                var checkAvailabilitySql = SqlQueryLoader.LoadQuery("Reservations", "CheckAvailableCopies");
                 await using var availCmd = new MySqlCommand(checkAvailabilitySql, conn, transaction);
                 availCmd.Parameters.AddWithValue("@BookId", bookId);
                 var availableCopies = Convert.ToInt32(await availCmd.ExecuteScalarAsync());
@@ -336,9 +383,7 @@ namespace Csp.Api.Services
 
                 // Create lending record
                 var dueDate = DateTime.UtcNow.AddDays(request.LoanDurationDays);
-                var createLendingSql = @"
-                    INSERT INTO lendings (BookId, UserId, BorrowDate, DueDate, Status, RenewalCount, MaxRenewals)
-                    VALUES (@BookId, @UserId, @BorrowDate, @DueDate, 'Active', 0, 2)";
+                var createLendingSql = SqlQueryLoader.LoadQuery("Reservations", "CreateLendingFromReservation");
                 
                 await using var lendingCmd = new MySqlCommand(createLendingSql, conn, transaction);
                 lendingCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -348,10 +393,7 @@ namespace Csp.Api.Services
                 await lendingCmd.ExecuteNonQueryAsync();
 
                 // Update reservation status
-                var updateReservationSql = @"
-                    UPDATE reservations 
-                    SET Status = 'Fulfilled', FulfilledDate = @FulfilledDate, UpdatedAt = @UpdatedAt
-                    WHERE Id = @ReservationId";
+                var updateReservationSql = SqlQueryLoader.LoadQuery("Reservations", "FulfillReservation");
                 
                 await using var updateCmd = new MySqlCommand(updateReservationSql, conn, transaction);
                 updateCmd.Parameters.AddWithValue("@ReservationId", request.ReservationId);
@@ -360,10 +402,7 @@ namespace Csp.Api.Services
                 await updateCmd.ExecuteNonQueryAsync();
 
                 // Update available copies
-                var updateInventorySql = @"
-                    UPDATE book_inventory 
-                    SET AvailableCopies = AvailableCopies - 1, UpdatedAt = @UpdatedAt
-                    WHERE BookId = @BookId";
+                var updateInventorySql = SqlQueryLoader.LoadQuery("Reservations", "DecrementAvailableCopies");
                 
                 await using var inventoryCmd = new MySqlCommand(updateInventorySql, conn, transaction);
                 inventoryCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -391,23 +430,21 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of reservations for a specific user.
+        /// Includes book details and queue position information.
+        /// </summary>
+        /// <param name="userId">The user ID to filter reservations.</param>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing the user's reservation records with book information.</returns>
         public async Task<PagedReservationsResponse> GetUserReservationsAsync(int userId, int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var sql = @"
-                SELECT r.*, b.Title, b.Author, b.Isbn, u.Username, u.Email
-                FROM reservations r
-                INNER JOIN books b ON r.BookId = b.Id
-                INNER JOIN users u ON r.UserId = u.Id
-                WHERE r.UserId = @UserId AND r.Status IN ('Pending', 'Available')
-                ORDER BY r.QueuePosition ASC
-                LIMIT @PageSize OFFSET @Offset";
-
-            var countSql = @"
-                SELECT COUNT(*) FROM reservations 
-                WHERE UserId = @UserId AND Status IN ('Pending', 'Available')";
+            var sql = SqlQueryLoader.LoadQuery("Reservations", "GetUserReservations");
+            var countSql = SqlQueryLoader.LoadQuery("Reservations", "CountUserReservations");
 
             var reservations = new List<ReservationDto>();
             
@@ -439,23 +476,20 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of all reservations in the system.
+        /// Includes book details, user information, and queue positions.
+        /// </summary>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing all reservation records with book and user information.</returns>
         public async Task<PagedReservationsResponse> GetAllReservationsAsync(int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var sql = @"
-                SELECT r.*, b.Title, b.Author, b.Isbn, u.Username, u.Email
-                FROM reservations r
-                INNER JOIN books b ON r.BookId = b.Id
-                INNER JOIN users u ON r.UserId = u.Id
-                WHERE r.Status IN ('Pending', 'Available')
-                ORDER BY r.Status DESC, r.QueuePosition ASC
-                LIMIT @PageSize OFFSET @Offset";
-
-            var countSql = @"
-                SELECT COUNT(*) FROM reservations 
-                WHERE Status IN ('Pending', 'Available')";
+            var sql = SqlQueryLoader.LoadQuery("Reservations", "GetAllReservations");
+            var countSql = SqlQueryLoader.LoadQuery("Reservations", "CountAllReservations");
 
             var reservations = new List<ReservationDto>();
             
@@ -485,17 +519,18 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves detailed information about a specific reservation by ID.
+        /// Includes book details, user information, and queue position.
+        /// </summary>
+        /// <param name="id">The reservation ID.</param>
+        /// <returns>A reservation DTO with full details, or null if the record is not found.</returns>
         public async Task<ReservationDto?> GetReservationByIdAsync(int id)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var sql = @"
-                SELECT r.*, b.Title, b.Author, b.Isbn, u.Username, u.Email
-                FROM reservations r
-                INNER JOIN books b ON r.BookId = b.Id
-                INNER JOIN users u ON r.UserId = u.Id
-                WHERE r.Id = @Id";
+            var sql = SqlQueryLoader.LoadQuery("Reservations", "GetReservationById");
 
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id);
@@ -510,6 +545,12 @@ namespace Csp.Api.Services
             return null;
         }
 
+        /// <summary>
+        /// Maps a database reader row to a ReservationDto object.
+        /// Extracts all reservation details including book information, user details, and status information.
+        /// </summary>
+        /// <param name="reader">The MySQL data reader positioned at the current row.</param>
+        /// <returns>A populated ReservationDto object with all relevant reservation information.</returns>
         private ReservationDto MapReservationDto(MySqlDataReader reader)
         {
             return new ReservationDto

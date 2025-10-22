@@ -1,26 +1,88 @@
 using Csp.Api.Models;
 using Csp.Api.DTOs;
+using Csp.Api.Data;
 using MySql.Data.MySqlClient;
 
 namespace Csp.Api.Services
 {
+    /// <summary>
+    /// Interface defining the contract for book lending operations.
+    /// </summary>
     public interface ILendingService
     {
+        /// <summary>
+        /// Processes a request to borrow a book.
+        /// </summary>
+        /// <param name="request">The borrow book request details.</param>
+        /// <returns>A response indicating success or failure with lending details.</returns>
         Task<LendingResponse> BorrowBookAsync(BorrowBookRequest request);
+
+        /// <summary>
+        /// Processes the return of a borrowed book.
+        /// </summary>
+        /// <param name="request">The return book request details.</param>
+        /// <returns>A response indicating success or failure with return details.</returns>
         Task<LendingResponse> ReturnBookAsync(ReturnBookRequest request);
+
+        /// <summary>
+        /// Renews an existing loan for a user.
+        /// </summary>
+        /// <param name="request">The renewal request details.</param>
+        /// <param name="userId">The ID of the user requesting the renewal.</param>
+        /// <returns>A response indicating success or failure with updated lending details.</returns>
         Task<LendingResponse> RenewLoanAsync(RenewLoanRequest request, int userId);
+
+        /// <summary>
+        /// Retrieves a paginated list of active loans.
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter loans by specific user.</param>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing active lending records.</returns>
         Task<PagedLendingsResponse> GetActiveLoansAsync(int? userId = null, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves a paginated list of loan history (returned books).
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter history by specific user.</param>
+        /// <param name="page">The page number to retrieve.</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing historical lending records.</returns>
         Task<PagedLendingsResponse> GetLoanHistoryAsync(int? userId = null, int page = 1, int pageSize = 10);
+
+        /// <summary>
+        /// Retrieves detailed information about a specific lending record.
+        /// </summary>
+        /// <param name="id">The lending record ID.</param>
+        /// <returns>The lending details, or null if not found.</returns>
         Task<LendingDto?> GetLendingByIdAsync(int id);
+
+        /// <summary>
+        /// Initializes the lending database tables.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         Task InitializeLendingTablesAsync();
     }
 
+    /// <summary>
+    /// Service implementation for managing book lending operations.
+    /// Handles borrowing, returning, renewing books, and maintains lending records.
+    /// </summary>
     public class LendingService : ILendingService
     {
         private readonly IConfiguration _configuration;
         private readonly string _connectionString;
+
+        /// <summary>
+        /// The fine amount charged per day for overdue books.
+        /// </summary>
         private const decimal FINE_PER_DAY = 1.0m;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LendingService"/> class.
+        /// </summary>
+        /// <param name="configuration">The application configuration for database connection.</param>
+        /// <exception cref="InvalidOperationException">Thrown when connection string is not found.</exception>
         public LendingService(IConfiguration configuration)
         {
             _configuration = configuration;
@@ -29,36 +91,27 @@ namespace Csp.Api.Services
                                  ?? throw new InvalidOperationException("Connection string not found");
         }
 
+        /// <summary>
+        /// Initializes the lending database tables by executing the create table script.
+        /// </summary>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task InitializeLendingTablesAsync()
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var createLendingsTableSql = @"
-                CREATE TABLE IF NOT EXISTS lendings (
-                    Id INT AUTO_INCREMENT PRIMARY KEY,
-                    BookId INT NOT NULL,
-                    UserId INT NOT NULL,
-                    BorrowDate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    DueDate DATETIME NOT NULL,
-                    ReturnDate DATETIME NULL,
-                    Status VARCHAR(20) NOT NULL DEFAULT 'Active',
-                    FineAmount DECIMAL(10,2) NULL,
-                    FinePaid BOOLEAN NOT NULL DEFAULT FALSE,
-                    RenewalCount INT NOT NULL DEFAULT 0,
-                    MaxRenewals INT NOT NULL DEFAULT 2,
-                    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    FOREIGN KEY (BookId) REFERENCES books(Id),
-                    FOREIGN KEY (UserId) REFERENCES users(Id),
-                    INDEX idx_user_status (UserId, Status),
-                    INDEX idx_book_status (BookId, Status)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+            var createLendingsTableSql = SqlQueryLoader.LoadQuery("Lendings", "CreateLendingsTable");
 
             await using var cmd = new MySqlCommand(createLendingsTableSql, conn);
             await cmd.ExecuteNonQueryAsync();
         }
 
+        /// <summary>
+        /// Processes a book borrowing request by validating availability and creating a lending record.
+        /// Validates book existence, availability, active status, and checks for existing loans.
+        /// </summary>
+        /// <param name="request">The borrow book request containing book ID, user ID, and loan duration.</param>
+        /// <returns>A response indicating success or failure with the created lending details.</returns>
         public async Task<LendingResponse> BorrowBookAsync(BorrowBookRequest request)
         {
             if (request.BookId <= 0 || request.UserId <= 0)
@@ -77,11 +130,7 @@ namespace Csp.Api.Services
             try
             {
                 // Check if book exists and is active
-                var checkBookSql = @"
-                    SELECT b.Id, b.IsActive, bi.AvailableCopies 
-                    FROM books b
-                    LEFT JOIN book_inventory bi ON b.Id = bi.BookId
-                    WHERE b.Id = @BookId";
+                var checkBookSql = SqlQueryLoader.LoadQuery("Lendings", "CheckBookAvailability");
                 
                 await using var bookCmd = new MySqlCommand(checkBookSql, conn, transaction);
                 bookCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -123,9 +172,7 @@ namespace Csp.Api.Services
                 }
 
                 // Check if user already has an active loan for this book
-                var checkExistingLoanSql = @"
-                    SELECT COUNT(*) FROM lendings 
-                    WHERE BookId = @BookId AND UserId = @UserId AND Status = 'Active'";
+                var checkExistingLoanSql = SqlQueryLoader.LoadQuery("Lendings", "CheckExistingLoan");
                 
                 await using var checkLoanCmd = new MySqlCommand(checkExistingLoanSql, conn, transaction);
                 checkLoanCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -144,10 +191,7 @@ namespace Csp.Api.Services
 
                 // Create lending record
                 var dueDate = DateTime.UtcNow.AddDays(request.LoanDurationDays);
-                var insertLendingSql = @"
-                    INSERT INTO lendings (BookId, UserId, BorrowDate, DueDate, Status, RenewalCount, MaxRenewals)
-                    VALUES (@BookId, @UserId, @BorrowDate, @DueDate, 'Active', 0, 2);
-                    SELECT LAST_INSERT_ID();";
+                var insertLendingSql = SqlQueryLoader.LoadQuery("Lendings", "InsertLending");
                 
                 await using var lendingCmd = new MySqlCommand(insertLendingSql, conn, transaction);
                 lendingCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -158,10 +202,7 @@ namespace Csp.Api.Services
                 var lendingId = Convert.ToInt32(await lendingCmd.ExecuteScalarAsync());
 
                 // Update available copies
-                var updateInventorySql = @"
-                    UPDATE book_inventory 
-                    SET AvailableCopies = AvailableCopies - 1, UpdatedAt = @UpdatedAt
-                    WHERE BookId = @BookId";
+                var updateInventorySql = SqlQueryLoader.LoadQuery("Lendings", "DecrementAvailableCopies");
                 
                 await using var inventoryCmd = new MySqlCommand(updateInventorySql, conn, transaction);
                 inventoryCmd.Parameters.AddWithValue("@BookId", request.BookId);
@@ -189,6 +230,12 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Processes the return of a borrowed book and calculates any applicable fines.
+        /// Updates the lending record, increments available copies, and calculates overdue fines if applicable.
+        /// </summary>
+        /// <param name="request">The return book request containing lending ID and optional fine amount.</param>
+        /// <returns>A response indicating success or failure with return details and fine information.</returns>
         public async Task<LendingResponse> ReturnBookAsync(ReturnBookRequest request)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -198,10 +245,7 @@ namespace Csp.Api.Services
             try
             {
                 // Get lending details
-                var getLendingSql = @"
-                    SELECT BookId, UserId, DueDate, Status 
-                    FROM lendings 
-                    WHERE Id = @LendingId";
+                var getLendingSql = SqlQueryLoader.LoadQuery("Lendings", "GetLendingForReturn");
                 
                 await using var lendingCmd = new MySqlCommand(getLendingSql, conn, transaction);
                 lendingCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -244,10 +288,7 @@ namespace Csp.Api.Services
                 }
 
                 // Update lending record
-                var updateLendingSql = @"
-                    UPDATE lendings 
-                    SET ReturnDate = @ReturnDate, Status = 'Returned', FineAmount = @FineAmount, UpdatedAt = @UpdatedAt
-                    WHERE Id = @LendingId";
+                var updateLendingSql = SqlQueryLoader.LoadQuery("Lendings", "UpdateLendingReturn");
                 
                 await using var updateCmd = new MySqlCommand(updateLendingSql, conn, transaction);
                 updateCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -257,10 +298,7 @@ namespace Csp.Api.Services
                 await updateCmd.ExecuteNonQueryAsync();
 
                 // Update available copies
-                var updateInventorySql = @"
-                    UPDATE book_inventory 
-                    SET AvailableCopies = AvailableCopies + 1, UpdatedAt = @UpdatedAt
-                    WHERE BookId = @BookId";
+                var updateInventorySql = SqlQueryLoader.LoadQuery("Lendings", "IncrementAvailableCopies");
                 
                 await using var inventoryCmd = new MySqlCommand(updateInventorySql, conn, transaction);
                 inventoryCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -290,6 +328,13 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Renews an existing loan by extending the due date.
+        /// Validates user ownership, checks renewal limits, and ensures no pending reservations exist.
+        /// </summary>
+        /// <param name="request">The renewal request containing the lending ID.</param>
+        /// <param name="userId">The ID of the user requesting the renewal for authorization check.</param>
+        /// <returns>A response indicating success or failure with the updated lending details and new due date.</returns>
         public async Task<LendingResponse> RenewLoanAsync(RenewLoanRequest request, int userId)
         {
             await using var conn = new MySqlConnection(_connectionString);
@@ -299,10 +344,7 @@ namespace Csp.Api.Services
             try
             {
                 // Get lending details
-                var getLendingSql = @"
-                    SELECT BookId, UserId, DueDate, Status, RenewalCount, MaxRenewals 
-                    FROM lendings 
-                    WHERE Id = @LendingId";
+                var getLendingSql = SqlQueryLoader.LoadQuery("Lendings", "GetLendingForRenewal");
                 
                 await using var lendingCmd = new MySqlCommand(getLendingSql, conn, transaction);
                 lendingCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -359,9 +401,7 @@ namespace Csp.Api.Services
                 }
 
                 // Check if book has pending reservations
-                var checkReservationsSql = @"
-                    SELECT COUNT(*) FROM reservations 
-                    WHERE BookId = @BookId AND Status = 'Pending'";
+                var checkReservationsSql = SqlQueryLoader.LoadQuery("Lendings", "CheckPendingReservations");
                 
                 await using var reservationCmd = new MySqlCommand(checkReservationsSql, conn, transaction);
                 reservationCmd.Parameters.AddWithValue("@BookId", bookId);
@@ -379,10 +419,7 @@ namespace Csp.Api.Services
 
                 // Renew the loan (extend by 14 days from current due date)
                 var newDueDate = currentDueDate.AddDays(14);
-                var updateLendingSql = @"
-                    UPDATE lendings 
-                    SET DueDate = @NewDueDate, RenewalCount = RenewalCount + 1, UpdatedAt = @UpdatedAt
-                    WHERE Id = @LendingId";
+                var updateLendingSql = SqlQueryLoader.LoadQuery("Lendings", "UpdateLendingRenewal");
                 
                 await using var updateCmd = new MySqlCommand(updateLendingSql, conn, transaction);
                 updateCmd.Parameters.AddWithValue("@LendingId", request.LendingId);
@@ -411,26 +448,25 @@ namespace Csp.Api.Services
             }
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of active (currently borrowed) loans.
+        /// Optionally filters by user ID and includes book and user details.
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter loans. If null, returns all active loans.</param>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing active lending records with book and user information.</returns>
         public async Task<PagedLendingsResponse> GetActiveLoansAsync(int? userId = null, int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var whereClause = userId.HasValue ? "AND l.UserId = @UserId" : "";
-            var sql = $@"
-                SELECT l.*, b.Title, b.Author, b.Isbn, u.Username, u.Email,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() THEN 1 ELSE 0 END as IsOverdue,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() THEN DATEDIFF(UTC_TIMESTAMP(), l.DueDate) ELSE 0 END as OverdueDays
-                FROM lendings l
-                INNER JOIN books b ON l.BookId = b.Id
-                INNER JOIN users u ON l.UserId = u.Id
-                WHERE l.Status IN ('Active', 'Overdue') {whereClause}
-                ORDER BY l.DueDate ASC
-                LIMIT @PageSize OFFSET @Offset";
-
-            var countSql = $@"
-                SELECT COUNT(*) FROM lendings l
-                WHERE l.Status IN ('Active', 'Overdue') {whereClause}";
+            // Load SQL query based on whether userId is provided
+            var queryName = userId.HasValue ? "GetActiveLoansWithUser" : "GetActiveLoans";
+            var countQueryName = userId.HasValue ? "CountActiveLoansWithUser" : "CountActiveLoans";
+            
+            var sql = SqlQueryLoader.LoadQuery("Lendings", queryName);
+            var countSql = SqlQueryLoader.LoadQuery("Lendings", countQueryName);
 
             var lendings = new List<LendingDto>();
             
@@ -464,25 +500,25 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves a paginated list of loan history (returned books).
+        /// Optionally filters by user ID and includes book and user details.
+        /// </summary>
+        /// <param name="userId">Optional user ID to filter history. If null, returns all historical loans.</param>
+        /// <param name="page">The page number to retrieve (1-based).</param>
+        /// <param name="pageSize">The number of items per page.</param>
+        /// <returns>A paginated response containing historical lending records with book and user information.</returns>
         public async Task<PagedLendingsResponse> GetLoanHistoryAsync(int? userId = null, int page = 1, int pageSize = 10)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var whereClause = userId.HasValue ? "AND l.UserId = @UserId" : "";
-            var sql = $@"
-                SELECT l.*, b.Title, b.Author, b.Isbn, u.Username, u.Email,
-                       0 as IsOverdue, 0 as OverdueDays
-                FROM lendings l
-                INNER JOIN books b ON l.BookId = b.Id
-                INNER JOIN users u ON l.UserId = u.Id
-                WHERE l.Status = 'Returned' {whereClause}
-                ORDER BY l.ReturnDate DESC
-                LIMIT @PageSize OFFSET @Offset";
-
-            var countSql = $@"
-                SELECT COUNT(*) FROM lendings l
-                WHERE l.Status = 'Returned' {whereClause}";
+            // Load SQL query based on whether userId is provided
+            var queryName = userId.HasValue ? "GetLoanHistoryWithUser" : "GetLoanHistory";
+            var countQueryName = userId.HasValue ? "CountLoanHistoryWithUser" : "CountLoanHistory";
+            
+            var sql = SqlQueryLoader.LoadQuery("Lendings", queryName);
+            var countSql = SqlQueryLoader.LoadQuery("Lendings", countQueryName);
 
             var lendings = new List<LendingDto>();
             
@@ -516,19 +552,18 @@ namespace Csp.Api.Services
             };
         }
 
+        /// <summary>
+        /// Retrieves detailed information about a specific lending record by ID.
+        /// Includes book details, user information, and calculated overdue status.
+        /// </summary>
+        /// <param name="id">The lending record ID.</param>
+        /// <returns>A lending DTO with full details, or null if the record is not found.</returns>
         public async Task<LendingDto?> GetLendingByIdAsync(int id)
         {
             await using var conn = new MySqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var sql = @"
-                SELECT l.*, b.Title, b.Author, b.Isbn, u.Username, u.Email,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() AND l.Status = 'Active' THEN 1 ELSE 0 END as IsOverdue,
-                       CASE WHEN l.DueDate < UTC_TIMESTAMP() AND l.Status = 'Active' THEN DATEDIFF(UTC_TIMESTAMP(), l.DueDate) ELSE 0 END as OverdueDays
-                FROM lendings l
-                INNER JOIN books b ON l.BookId = b.Id
-                INNER JOIN users u ON l.UserId = u.Id
-                WHERE l.Id = @Id";
+            var sql = SqlQueryLoader.LoadQuery("Lendings", "GetLendingById");
 
             await using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Id", id);
@@ -543,6 +578,12 @@ namespace Csp.Api.Services
             return null;
         }
 
+        /// <summary>
+        /// Maps a database reader row to a LendingDto object.
+        /// Extracts all lending details including book information, user details, and overdue calculations.
+        /// </summary>
+        /// <param name="reader">The MySQL data reader positioned at the current row.</param>
+        /// <returns>A populated LendingDto object with all relevant lending information.</returns>
         private LendingDto MapLendingDto(MySqlDataReader reader)
         {
             var isOverdue = reader.GetInt32(reader.GetOrdinal("IsOverdue")) == 1;

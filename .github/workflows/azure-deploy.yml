@@ -2,11 +2,11 @@ name: Deploy to Azure App Service
 
 on:
   push:
-    branches: [ main, deploy/usermanagement ]
+    branches: [ deployment ]
   workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: lms
+  AZURE_WEBAPP_NAME: lector-lms
   AZURE_WEBAPP_PACKAGE_PATH: './backend/Csp.Api'
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION: '20'
@@ -43,6 +43,7 @@ jobs:
     # Copy frontend build to backend wwwroot
     - name: Copy frontend to backend
       run: |
+        rm -rf backend/Csp.Api/wwwroot
         mkdir -p backend/Csp.Api/wwwroot
         cp -r frontend/csp-web/dist/* backend/Csp.Api/wwwroot/
 
