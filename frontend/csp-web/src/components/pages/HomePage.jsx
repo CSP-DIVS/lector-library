@@ -9,22 +9,241 @@ const HomePage = ({ user }) => {
 
   useEffect(() => {
     fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.role]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      // Mock data for now - replace with actual API calls
-      const mockStats = getMockStatsForRole(user.role);
-      const mockActivities = getMockActivitiesForRole(user.role);
       
-      setStats(mockStats);
-      setRecentActivities(mockActivities);
+      if (user.role === 'Administrator') {
+        await fetchAdminStats();
+      } else if (user.role === 'Librarian') {
+        await fetchLibrarianStats();
+      } else {
+        await fetchMemberStats();
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      // Set empty stats on error
+      setStats({});
+      setRecentActivities([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAdminStats = async () => {
+    try {
+      // Fetch all required data in parallel
+      const [usersRes, booksRes, loansRes, finesRes] = await Promise.all([
+        api.get('/users', { params: { page: 1, pageSize: 1 } }),
+        api.get('/books', { params: { page: 1, pageSize: 1 } }),
+        api.get('/lendings/active', { params: { page: 1, pageSize: 1000 } }),
+        api.get('/fines', { params: { page: 1, pageSize: 1000 } })
+      ]);
+
+      // Handle both PascalCase (C#) and camelCase (JSON) property names
+      const totalUsers = usersRes.data.total || usersRes.data.Total || 0;
+      const totalBooks = booksRes.data.total || booksRes.data.Total || 0;
+      const activeLoans = loansRes.data.total || loansRes.data.Total || 0;
+      const allLoans = loansRes.data.items || loansRes.data.Items || [];
+      const allFines = finesRes.data.items || finesRes.data.Items || [];
+
+      // Calculate overdue books
+      const overdueBooks = allLoans.filter(loan => loan.isOverdue || loan.IsOverdue).length;
+      
+      // Calculate outstanding fines total (Status can be "Outstanding")
+      const outstandingFinesTotal = allFines
+        .filter(fine => (fine.status || fine.Status) === 'Outstanding')
+        .reduce((sum, fine) => sum + (fine.amount || fine.Amount), 0);
+
+      setStats({
+        totalUsers: { label: 'Total Users', value: totalUsers.toString() },
+        totalBooks: { label: 'Total Books', value: totalBooks.toString() },
+        activeLoans: { label: 'Active Loans', value: activeLoans.toString() },
+        overdueBooks: { label: 'Overdue Books', value: overdueBooks.toString() },
+        outstandingFines: { label: 'Outstanding Fines', value: `Rs.${outstandingFinesTotal.toFixed(2)}` },
+        totalFines: { label: 'Total Fines', value: allFines.length.toString() }
+      });
+
+      // Get recent activities from active loans
+      const recentLoans = allLoans.slice(0, 4).map((loan) => ({
+        icon: (loan.isOverdue || loan.IsOverdue) ? '⚠️' : '📖',
+        title: (loan.isOverdue || loan.IsOverdue) ? 'Overdue Book' : 'Active Loan',
+        description: `"${loan.bookTitle || loan.BookTitle}" borrowed by ${loan.username || loan.Username}`,
+        time: formatDate(loan.borrowDate || loan.BorrowDate)
+      }));
+
+      setRecentActivities(recentLoans);
+    } catch (error) {
+      console.error('Error fetching admin stats:', error);
+      throw error;
+    }
+  };
+
+  const fetchLibrarianStats = async () => {
+    try {
+      // Fetch all required data in parallel
+      const [loansRes, reservationsRes, finesRes] = await Promise.all([
+        api.get('/lendings/active', { params: { page: 1, pageSize: 1000 } }),
+        api.get('/reservations', { params: { page: 1, pageSize: 1000 } }),
+        api.get('/fines', { params: { page: 1, pageSize: 1000 } })
+      ]);
+
+      const allLoans = loansRes.data.items || loansRes.data.Items || [];
+      const allReservations = reservationsRes.data.items || reservationsRes.data.Items || [];
+      const allFines = finesRes.data.items || finesRes.data.Items || [];
+
+      // Calculate stats
+      const activeLoans = loansRes.data.total || loansRes.data.Total || 0;
+      const overdueLoans = allLoans.filter(loan => loan.isOverdue || loan.IsOverdue).length;
+      const pendingReservations = allReservations.filter(r => (r.status || r.Status) === 'Pending').length;
+      const paidFinesTotal = allFines
+        .filter(fine => (fine.status || fine.Status) === 'Paid')
+        .reduce((sum, fine) => sum + (fine.amount || fine.Amount), 0);
+      const outstandingFinesCount = allFines.filter(fine => (fine.status || fine.Status) === 'Outstanding').length;
+
+      setStats({
+        activeLoans: { label: 'Active Loans', value: activeLoans.toString() },
+        overdueLoans: { label: 'Overdue Books', value: overdueLoans.toString() },
+        pendingReservations: { label: 'Pending Reservations', value: pendingReservations.toString() },
+        totalReservations: { label: 'Total Reservations', value: allReservations.length.toString() },
+        finesCollected: { label: 'Fines Collected', value: `Rs.${paidFinesTotal.toFixed(2)}` },
+        outstandingFinesCount: { label: 'Outstanding Fines', value: outstandingFinesCount.toString() }
+      });
+
+      // Get recent activities
+      const recentLoans = allLoans.slice(0, 2).map(loan => ({
+        icon: (loan.isOverdue || loan.IsOverdue) ? '⚠️' : '📖',
+        title: (loan.isOverdue || loan.IsOverdue) ? 'Overdue Book' : 'Active Loan',
+        description: `"${loan.bookTitle || loan.BookTitle}" - ${loan.username || loan.Username}`,
+        time: formatDate(loan.borrowDate || loan.BorrowDate)
+      }));
+
+      const recentReservations = allReservations.slice(0, 2).map(res => ({
+        icon: '🔖',
+        title: `Reservation ${res.status || res.Status}`,
+        description: `"${res.bookTitle || res.BookTitle}" - ${res.username || res.Username}`,
+        time: formatDate(res.reservedDate || res.ReservedDate)
+      }));
+
+      setRecentActivities([...recentLoans, ...recentReservations]);
+    } catch (error) {
+      console.error('Error fetching librarian stats:', error);
+      throw error;
+    }
+  };
+
+  const fetchMemberStats = async () => {
+    try {
+      // Fetch all required data in parallel
+      const [loansRes, reservationsRes, historyRes, fineStatsRes] = await Promise.all([
+        api.get('/lendings/active', { params: { page: 1, pageSize: 1000 } }),
+        api.get('/reservations/my-reservations', { params: { page: 1, pageSize: 1000 } }),
+        api.get('/lendings/history', { params: { page: 1, pageSize: 1000 } }),
+        api.get('/fines/my-statistics').catch(() => ({ data: { totalOutstanding: 0, TotalOutstanding: 0, outstandingCount: 0, OutstandingCount: 0, paidCount: 0, PaidCount: 0 } }))
+      ]);
+
+      const allLoans = loansRes.data.items || loansRes.data.Items || [];
+      const allReservations = reservationsRes.data.items || reservationsRes.data.Items || [];
+      const allHistory = historyRes.data.items || historyRes.data.Items || [];
+      const fineStats = fineStatsRes.data;
+
+      // Calculate stats
+      const booksLoaned = allLoans.length;
+      const booksReserved = allReservations.filter(r => (r.status || r.Status) === 'Pending').length;
+      
+      // Calculate due this week
+      const oneWeekFromNow = new Date();
+      oneWeekFromNow.setDate(oneWeekFromNow.getDate() + 7);
+      const dueThisWeek = allLoans.filter(loan => {
+        const dueDate = new Date(loan.dueDate || loan.DueDate);
+        return dueDate <= oneWeekFromNow && dueDate >= new Date();
+      }).length;
+
+      const totalRead = allHistory.length;
+      const outstandingFines = fineStats.totalOutstanding || fineStats.TotalOutstanding || 0;
+      const paidCount = fineStats.paidCount || fineStats.PaidCount || 0;
+
+      setStats({
+        booksLoaned: { label: 'Books on Loan', value: booksLoaned.toString() },
+        booksReserved: { label: 'Books Reserved', value: booksReserved.toString() },
+        dueThisWeek: { label: 'Due This Week', value: dueThisWeek.toString() },
+        totalRead: { label: 'Books Read (History)', value: totalRead.toString() },
+        outstandingFines: { label: 'Outstanding Fines', value: `Rs.${outstandingFines.toFixed(2)}` },
+        paidFines: { label: 'Fines Paid', value: paidCount.toString() }
+      });
+
+      // Get recent activities
+      const activities = [];
+
+      // Add overdue/due soon books
+      allLoans.forEach(loan => {
+        const isOverdue = loan.isOverdue || loan.IsOverdue;
+        const bookTitle = loan.bookTitle || loan.BookTitle;
+        const dueDate = loan.dueDate || loan.DueDate;
+        const overdueDays = loan.overdueDays || loan.OverdueDays;
+
+        if (isOverdue) {
+          activities.push({
+            icon: '⚠️',
+            title: 'Book Overdue',
+            description: `"${bookTitle}" is overdue by ${overdueDays} days`,
+            time: formatDate(dueDate)
+          });
+        } else {
+          const daysUntilDue = Math.ceil((new Date(dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+          if (daysUntilDue <= 3 && daysUntilDue >= 0) {
+            activities.push({
+              icon: '📚',
+              title: 'Book Due Soon',
+              description: `"${bookTitle}" is due in ${daysUntilDue} day(s)`,
+              time: formatDate(dueDate)
+            });
+          }
+        }
+      });
+
+      // Add recent reservations
+      allReservations.slice(0, 2).forEach(res => {
+        activities.push({
+          icon: '🔖',
+          title: `Book Reserved (${res.status || res.Status})`,
+          description: `"${res.bookTitle || res.BookTitle}" - Position #${res.queuePosition || res.QueuePosition}`,
+          time: formatDate(res.reservedDate || res.ReservedDate)
+        });
+      });
+
+      // Add recent returns
+      allHistory.slice(0, 2).forEach(loan => {
+        activities.push({
+          icon: '✅',
+          title: 'Book Returned',
+          description: `"${loan.bookTitle || loan.BookTitle}"`,
+          time: formatDate(loan.returnDate || loan.ReturnDate)
+        });
+      });
+
+      setRecentActivities(activities.slice(0, 4));
+    } catch (error) {
+      console.error('Error fetching member stats:', error);
+      throw error;
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    return date.toLocaleDateString();
   };
 
   if (loading) {
@@ -55,11 +274,6 @@ const HomePage = ({ user }) => {
                 <div className="stat-content">
                   <div className="stat-value">{value.value}</div>
                   <div className="stat-label">{value.label}</div>
-                  {value.change && (
-                    <div className={`stat-change ${value.change > 0 ? 'positive' : 'negative'}`}>
-                      {value.change > 0 ? '+' : ''}{value.change}%
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
@@ -82,15 +296,15 @@ const HomePage = ({ user }) => {
           </div>
         </div>
 
-        <div className="quick-actions-section">
-          <h2>Quick Actions</h2>
-          <div className="quick-actions-grid">
-            {getQuickActionsForRole(user.role).map((action, index) => (
-              <button key={index} className="quick-action-btn" onClick={action.onClick}>
-                <div className="action-icon">{action.icon}</div>
-                <div className="action-label">{action.label}</div>
-              </button>
-            ))}
+        <div className="info-section">
+          <h2>Quick Info</h2>
+          <div className="info-content">
+            <p><strong>Library Hours:</strong> Monday-Friday: 8:00 AM - 8:00 PM</p>
+            <p><strong>Loan Period:</strong> 14 days (renewable up to 2 times)</p>
+            <p><strong>Fine Rate:</strong> Rs.20.00 per day for overdue items</p>
+            {recentActivities.length === 0 && (
+              <p className="no-activity">No recent activities to display.</p>
+            )}
           </div>
         </div>
       </div>
@@ -111,107 +325,24 @@ const getRoleDescription = (role) => {
   }
 };
 
-const getMockStatsForRole = (role) => {
-  if (role === 'Administrator') {
-    return {
-      totalUsers: { label: 'Total Users', value: '1,247', change: 12 },
-      totalBooks: { label: 'Total Books', value: '15,832', change: 3 },
-      activeLoans: { label: 'Active Loans', value: '3,456', change: -2 },
-      overdueBooks: { label: 'Overdue Books', value: '89', change: -15 },
-      monthlyRevenue: { label: 'Monthly Revenue', value: '$2,340', change: 8 },
-      newRegistrations: { label: 'New Registrations', value: '156', change: 25 }
-    };
-  } else if (role === 'Librarian') {
-    return {
-      dailyCheckouts: { label: 'Daily Checkouts', value: '67', change: 5 },
-      dailyReturns: { label: 'Daily Returns', value: '54', change: -3 },
-      pendingRequests: { label: 'Pending Requests', value: '23', change: 0 },
-      overdueToday: { label: 'Overdue Today', value: '12', change: -8 },
-      reservations: { label: 'Active Reservations', value: '145', change: 7 },
-      finesCollected: { label: 'Fines Collected', value: '$89', change: 15 }
-    };
-  } else {
-    return {
-      booksLoaned: { label: 'Books on Loan', value: '3', change: 0 },
-      booksReserved: { label: 'Books Reserved', value: '2', change: 1 },
-      dueThisWeek: { label: 'Due This Week', value: '1', change: 0 },
-      totalRead: { label: 'Books Read This Year', value: '24', change: 20 },
-      outstandingFines: { label: 'Outstanding Fines', value: '$0', change: -100 },
-      favoriteGenre: { label: 'Favorite Genre', value: 'Fiction', change: null }
-    };
-  }
-};
-
-const getMockActivitiesForRole = (role) => {
-  if (role === 'Administrator') {
-    return [
-      { icon: '👤', title: 'New User Registration', description: 'John Smith registered as a new member', time: '2 hours ago' },
-      { icon: '📚', title: 'Book Added', description: 'Added "The Great Gatsby" to the collection', time: '4 hours ago' },
-      { icon: '⚠️', title: 'System Alert', description: 'Server maintenance scheduled for tonight', time: '6 hours ago' },
-      { icon: '💰', title: 'Payment Received', description: 'Fine payment of $15 received from Jane Doe', time: '1 day ago' }
-    ];
-  } else if (role === 'Librarian') {
-    return [
-      { icon: '📖', title: 'Book Checked Out', description: 'Member borrowed "To Kill a Mockingbird"', time: '30 minutes ago' },
-      { icon: '🔄', title: 'Book Returned', description: 'Member returned "1984" (on time)', time: '1 hour ago' },
-      { icon: '📋', title: 'Reservation Fulfilled', description: 'Reserved book picked up by member', time: '2 hours ago' },
-      { icon: '⏰', title: 'Overdue Notice', description: 'Sent overdue notice to 3 members', time: '3 hours ago' }
-    ];
-  } else {
-    return [
-      { icon: '📚', title: 'Book Due Soon', description: '"The Catcher in the Rye" is due in 2 days', time: 'Today' },
-      { icon: '✅', title: 'Book Returned', description: 'Successfully returned "Pride and Prejudice"', time: '2 days ago' },
-      { icon: '🔖', title: 'Book Reserved', description: 'Reserved "Dune" - position #3 in queue', time: '3 days ago' },
-      { icon: '⭐', title: 'Review Submitted', description: 'Rated "The Hobbit" 5 stars', time: '1 week ago' }
-    ];
-  }
-};
-
-const getQuickActionsForRole = (role) => {
-  if (role === 'Administrator') {
-    return [
-      { icon: '👥', label: 'Add New User', onClick: () => {} },
-      { icon: '📊', label: 'View Reports', onClick: () => {} },
-      { icon: '⚙️', label: 'System Settings', onClick: () => {} },
-      { icon: '📧', label: 'Send Notifications', onClick: () => {} }
-    ];
-  } else if (role === 'Librarian') {
-    return [
-      { icon: '📖', label: 'Check Out Book', onClick: () => {} },
-      { icon: '🔄', label: 'Process Returns', onClick: () => {} },
-      { icon: '📋', label: 'Manage Reservations', onClick: () => {} },
-      { icon: '💰', label: 'Process Fines', onClick: () => {} }
-    ];
-  } else {
-    return [
-      { icon: '🔍', label: 'Search Books', onClick: () => {} },
-      { icon: '📖', label: 'My Loans', onClick: () => {} },
-      { icon: '🔖', label: 'My Reservations', onClick: () => {} },
-      { icon: '💳', label: 'Pay Fines', onClick: () => {} }
-    ];
-  }
-};
-
 const getStatIcon = (key) => {
   const iconMap = {
     totalUsers: '👥',
     totalBooks: '📚',
     activeLoans: '📖',
     overdueBooks: '⏰',
-    monthlyRevenue: '💰',
-    newRegistrations: '✨',
-    dailyCheckouts: '📤',
-    dailyReturns: '📥',
-    pendingRequests: '📋',
-    overdueToday: '⚠️',
-    reservations: '🔖',
+    overdueLoans: '⚠️',
+    outstandingFines: '💰',
+    outstandingFinesCount: '💰',
+    totalFines: '📋',
+    pendingReservations: '🔖',
+    totalReservations: '📋',
     finesCollected: '💵',
     booksLoaned: '📚',
     booksReserved: '🔖',
     dueThisWeek: '⏰',
     totalRead: '✅',
-    outstandingFines: '💳',
-    favoriteGenre: '❤️'
+    paidFines: '✅'
   };
   return iconMap[key] || '📊';
 };

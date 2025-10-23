@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import './BookManagement.css';
 import AddBookModal from '../ui/AddBookModal';
 import EditBookModal from '../ui/EditBookModal';
@@ -108,6 +110,102 @@ const BookManagement = ({ user }) => {
     setShowEditForm(false);
   };
 
+  const handleExportReport = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Lector Library Book Catalog', 105, 20, { align: 'center' });
+      
+      // Add generation date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 28, { align: 'center' });
+      
+      // Add summary statistics
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 14, 40);
+      
+      const activeBooks = filteredBooks.filter(b => b.isActive);
+      const inactiveBooks = filteredBooks.filter(b => !b.isActive);
+      const availableBooks = filteredBooks.filter(b => b.availableCopies > 0);
+      const totalCopies = filteredBooks.reduce((sum, b) => sum + b.totalCopies, 0);
+      const availableCopies = filteredBooks.reduce((sum, b) => sum + b.availableCopies, 0);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Total Books: ${filteredBooks.length}`, 14, 48);
+      doc.text(`Active Books: ${activeBooks.length}`, 14, 54);
+      doc.text(`Inactive Books: ${inactiveBooks.length}`, 14, 60);
+      doc.text(`Books Available for Lending: ${availableBooks.length}`, 14, 66);
+      doc.text(`Total Copies: ${totalCopies} | Available: ${availableCopies}`, 14, 72);
+      
+      // Prepare table data
+      const tableData = filteredBooks.map(book => [
+        book.title,
+        book.author,
+        book.isbn,
+        book.category,
+        book.publishedYear,
+        `${book.availableCopies}/${book.totalCopies}`,
+        book.isActive ? 'Active' : 'Inactive'
+      ]);
+      
+      // Add books table
+      autoTable(doc, {
+        startY: 80,
+        head: [['Title', 'Author', 'ISBN', 'Category', 'Year', 'Copies', 'Status']],
+        body: tableData,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+        },
+        headStyles: {
+          fillColor: [46, 125, 50],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 40 },  // Title
+          1: { cellWidth: 35 },  // Author
+          2: { cellWidth: 28 },  // ISBN
+          3: { cellWidth: 28 },  // Category
+          4: { cellWidth: 18 },  // Year
+          5: { cellWidth: 22 },  // Copies
+          6: { cellWidth: 22 },  // Status
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        didDrawPage: (data) => {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          );
+        }
+      });
+      
+      // Save the PDF
+      const fileName = `Book_Catalog_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      setMessage({ type: 'success', text: 'Report exported successfully!' });
+    } catch (error) {
+      console.error('Error generating report:', error);
+      setMessage({ type: 'error', text: 'Failed to generate report. Please try again.' });
+    }
+  };
+
   // Auto-refresh when search or filter changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -169,6 +267,13 @@ const BookManagement = ({ user }) => {
         
         {canManageBooks && (
           <div className="toolbar-actions">
+            <button
+              onClick={handleExportReport}
+              className="btn btn-outline"
+              disabled={filteredBooks.length === 0}
+            >
+              Export Report
+            </button>
             <button
               onClick={() => setShowAddForm(true)}
               className="btn btn-primary"

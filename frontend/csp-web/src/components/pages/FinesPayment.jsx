@@ -1,29 +1,310 @@
 import { useState, useEffect } from 'react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import './FinesPayment.css';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5192';
 
 const FinesPayment = ({ user }) => {
   const [fines, setFines] = useState([]);
   const [paymentHistory, setPaymentHistory] = useState([]);
+  const [statistics, setStatistics] = useState(null);
   const [activeTab, setActiveTab] = useState('outstanding');
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     fetchFinesData();
-  }, []);
+  }, [user.role]);
 
   const fetchFinesData = async () => {
     try {
-      // Mock data - replace with actual API calls
-      const mockFines = getMockFinesForRole(user.role);
-      const mockPayments = getMockPaymentHistoryForRole(user.role);
+      setLoading(true);
+      const token = localStorage.getItem('token');
       
-      setFines(mockFines);
-      setPaymentHistory(mockPayments);
+      // Fetch fines based on user role
+      const finesEndpoint = user.role === 'Member' 
+        ? `${API_BASE_URL}/api/fines/my-fines`
+        : `${API_BASE_URL}/api/fines`;
+      
+      console.log('Fetching fines from:', finesEndpoint);
+      
+      const finesResponse = await fetch(finesEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Fines response status:', finesResponse.status);
+      
+      if (finesResponse.ok) {
+        const finesData = await finesResponse.json();
+        console.log('Fines data received:', finesData);
+        console.log('Fines items:', finesData.items);
+        console.log('Number of fines:', finesData.items?.length || 0);
+        setFines(finesData.items || []);
+      } else {
+        const errorText = await finesResponse.text();
+        console.error('Failed to fetch fines. Status:', finesResponse.status);
+        console.error('Error response:', errorText);
+      }
+
+      // Fetch payment history based on user role
+      const paymentsEndpoint = user.role === 'Member'
+        ? `${API_BASE_URL}/api/fines/my-payments`
+        : `${API_BASE_URL}/api/fines/payments`;
+      
+      const paymentsResponse = await fetch(paymentsEndpoint, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (paymentsResponse.ok) {
+        const paymentsData = await paymentsResponse.json();
+        setPaymentHistory(paymentsData.items || []);
+      }
+
+      // Fetch statistics if member
+      if (user.role === 'Member') {
+        const statsResponse = await fetch(`${API_BASE_URL}/api/fines/my-statistics`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setStatistics(statsData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching fines data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePayFine = async (fineId) => {
+    if (!confirm('Are you sure you want to pay this fine?')) {
+      return;
+    }
+
+    try {
+      setProcessing(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/fines/pay`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fineId: fineId
+        })
+      });
+
+      if (response.ok) {
+        alert('Payment processed successfully!');
+        fetchFinesData(); // Refresh data
+      } else {
+        const error = await response.json();
+        alert(`Payment failed: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      alert('Failed to process payment. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleWaiveFine = async (fineId) => {
+    const reason = prompt('Enter reason for waiving fine:');
+    if (!reason) return;
+
+    try {
+      setProcessing(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/fines/waive`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fineId: fineId,
+          reason: reason
+        })
+      });
+
+      if (response.ok) {
+        alert('Fine waived successfully!');
+        fetchFinesData(); // Refresh data
+      } else {
+        const error = await response.json();
+        alert(`Failed to waive fine: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error waiving fine:', error);
+      alert('Failed to waive fine. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAdjustFineAmount = async (fineId, currentAmount) => {
+    const newAmountStr = prompt(`Enter new fine amount (Current: Rs ${currentAmount.toFixed(2)}):`);
+    if (!newAmountStr) return;
+
+    const newAmount = parseFloat(newAmountStr);
+    if (isNaN(newAmount) || newAmount < 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+
+    const reason = prompt('Enter reason for adjustment:');
+    if (!reason) return;
+
+    try {
+      setProcessing(true);
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`${API_BASE_URL}/api/fines/adjust-amount`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fineId: fineId,
+          newAmount: newAmount,
+          reason: reason
+        })
+      });
+
+      if (response.ok) {
+        alert('Fine amount adjusted successfully!');
+        fetchFinesData(); // Refresh data
+      } else {
+        const error = await response.json();
+        alert(`Failed to adjust fine amount: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error adjusting fine amount:', error);
+      alert('Failed to adjust fine amount. Please try again.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleExportReport = () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Add title
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Lector Library Fines Report', 105, 20, { align: 'center' });
+      
+      // Add generation date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 28, { align: 'center' });
+      
+      // Add summary statistics
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary', 14, 40);
+      
+      const outstandingFines = fines.filter(f => f.status === 'Outstanding');
+      const paidFines = fines.filter(f => f.status === 'Paid');
+      const waivedFines = fines.filter(f => f.status === 'Waived');
+      const totalOutstanding = outstandingFines.reduce((sum, f) => sum + f.amount, 0);
+      const totalPaid = paidFines.reduce((sum, f) => sum + f.amount, 0);
+      const totalWaived = waivedFines.reduce((sum, f) => sum + f.amount, 0);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`Total Fines: ${fines.length}`, 14, 48);
+      doc.text(`Outstanding: ${outstandingFines.length} (Rs ${totalOutstanding.toFixed(2)})`, 14, 54);
+      doc.text(`Paid: ${paidFines.length} (Rs ${totalPaid.toFixed(2)})`, 14, 60);
+      doc.text(`Waived: ${waivedFines.length} (Rs ${totalWaived.toFixed(2)})`, 14, 66);
+      
+      // Prepare table data
+      const tableData = fines.map(fine => [
+        fine.memberName,
+        fine.bookTitle,
+        fine.reason,
+        new Date(fine.dueDate).toLocaleDateString(),
+        fine.daysOverdue,
+        `Rs ${fine.amount.toFixed(2)}`,
+        fine.status
+      ]);
+      
+      // Add fines table using autoTable
+      autoTable(doc, {
+        startY: 75,
+        head: [['Member', 'Book', 'Reason', 'Due Date', 'Days', 'Amount', 'Status']],
+        body: tableData,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 3,
+        },
+        headStyles: {
+          fillColor: [41, 128, 185],
+          textColor: 255,
+          fontStyle: 'bold',
+        },
+        columnStyles: {
+          0: { cellWidth: 30 },  // Member
+          1: { cellWidth: 35 },  // Book
+          2: { cellWidth: 40 },  // Reason
+          3: { cellWidth: 25 },  // Due Date
+          4: { cellWidth: 15 },  // Days
+          5: { cellWidth: 22 },  // Amount
+          6: { cellWidth: 20 },  // Status
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245]
+        },
+        didDrawPage: (data) => {
+          // Footer
+          const pageCount = doc.internal.getNumberOfPages();
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(
+            `Page ${data.pageNumber} of ${pageCount}`,
+            doc.internal.pageSize.width / 2,
+            doc.internal.pageSize.height - 10,
+            { align: 'center' }
+          );
+        }
+      });
+      
+      // Save the PDF
+      const fileName = `Fines_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+      
+      alert('Report exported successfully!');
+    } catch (error) {
+      console.error('Error generating report:', error);
+      alert('Failed to generate report. Please try again.');
+    }
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   const totalOutstanding = fines
@@ -58,13 +339,8 @@ const FinesPayment = ({ user }) => {
           <div className="summary-content">
             <div className="summary-info">
               <h3>Outstanding Balance</h3>
-              <div className="total-amount">${totalOutstanding.toFixed(2)}</div>
+              <div className="total-amount">Rs {totalOutstanding.toFixed(2)}</div>
               <p>{fines.filter(f => f.status === 'Outstanding').length} unpaid fine(s)</p>
-            </div>
-            <div className="summary-actions">
-              <button className="btn btn-primary pay-all-btn">
-                Pay All Fines
-              </button>
             </div>
           </div>
         </div>
@@ -100,7 +376,9 @@ const FinesPayment = ({ user }) => {
               </h2>
               {user.role !== 'Member' && (
                 <div className="section-actions">
-                  <button className="btn btn-outline">Export Report</button>
+                  <button className="btn btn-outline" onClick={handleExportReport}>
+                    Export Report
+                  </button>
                 </div>
               )}
             </div>
@@ -130,11 +408,11 @@ const FinesPayment = ({ user }) => {
                       <div className="fine-dates">
                         <div className="date-item">
                           <span className="date-label">Due Date:</span>
-                          <span className="date-value">{fine.dueDate}</span>
+                          <span className="date-value">{formatDate(fine.dueDate)}</span>
                         </div>
                         <div className="date-item">
                           <span className="date-label">Overdue Since:</span>
-                          <span className="date-value">{fine.overdueDate}</span>
+                          <span className="date-value">{formatDate(fine.overdueDate)}</span>
                         </div>
                         <div className="date-item">
                           <span className="date-label">Days Overdue:</span>
@@ -147,21 +425,37 @@ const FinesPayment = ({ user }) => {
                   <div className="fine-amount-section">
                     <div className="amount-info">
                       <div className="amount-label">Fine Amount</div>
-                      <div className="amount-value">${fine.amount.toFixed(2)}</div>
+                      <div className="amount-value">Rs {fine.amount.toFixed(2)}</div>
                     </div>
                     
                     <div className="fine-actions">
                       {user.role === 'Member' ? (
-                        fine.status === 'Outstanding' && (
-                          <button className="btn btn-primary">Pay Fine</button>
-                        )
+                        null
                       ) : (
                         <div className="staff-actions">
                           {fine.status === 'Outstanding' && (
                             <>
-                              <button className="btn btn-primary">Process Payment</button>
-                              <button className="btn btn-outline">Send Notice</button>
-                              <button className="btn btn-secondary">Waive Fine</button>
+                              <button 
+                                className="btn btn-primary"
+                                onClick={() => handlePayFine(fine.id)}
+                                disabled={processing}
+                              >
+                                Process Payment
+                              </button>
+                              <button 
+                                className="btn btn-outline"
+                                onClick={() => handleAdjustFineAmount(fine.id, fine.amount)}
+                                disabled={processing}
+                              >
+                                Adjust Amount
+                              </button>
+                              <button 
+                                className="btn btn-secondary"
+                                onClick={() => handleWaiveFine(fine.id)}
+                                disabled={processing}
+                              >
+                                Waive Fine
+                              </button>
                             </>
                           )}
                         </div>
@@ -186,7 +480,7 @@ const FinesPayment = ({ user }) => {
                   <div className="payment-info">
                     <div className="payment-header">
                       <h3 className="payment-description">{payment.description}</h3>
-                      <span className="payment-amount">${payment.amount.toFixed(2)}</span>
+                      <span className="payment-amount">Rs {payment.amount.toFixed(2)}</span>
                     </div>
                     
                     <div className="payment-details">
@@ -194,18 +488,10 @@ const FinesPayment = ({ user }) => {
                         <p className="member-name">Member: {payment.memberName}</p>
                       )}
                       <div className="payment-meta">
-                        <span className="payment-date">{payment.date}</span>
-                        <span className="payment-method">{payment.method}</span>
-                        <span className="payment-id">ID: {payment.transactionId}</span>
+                        <span className="payment-date">{formatDate(payment.paymentDate)}</span>
+                        <span className="payment-id">Transaction ID: {payment.transactionId}</span>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="payment-actions">
-                    <button className="btn btn-outline">View Receipt</button>
-                    {user.role !== 'Member' && (
-                      <button className="btn btn-outline">Refund</button>
-                    )}
                   </div>
                 </div>
               ))}
@@ -237,116 +523,6 @@ const FinesPayment = ({ user }) => {
       )}
     </div>
   );
-};
-
-const getMockFinesForRole = (role) => {
-  if (role === 'Member') {
-    return [
-      {
-        id: 1,
-        reason: 'Overdue Book',
-        bookTitle: 'To Kill a Mockingbird',
-        bookAuthor: 'Harper Lee',
-        amount: 3.50,
-        dueDate: '2024-09-01',
-        overdueDate: '2024-09-02',
-        daysOverdue: 7,
-        status: 'Outstanding'
-      }
-    ];
-  } else {
-    return [
-      {
-        id: 1,
-        reason: 'Overdue Book',
-        bookTitle: '1984',
-        bookAuthor: 'George Orwell',
-        memberName: 'Jane Doe',
-        amount: 7.00,
-        dueDate: '2024-08-25',
-        overdueDate: '2024-08-26',
-        daysOverdue: 14,
-        status: 'Outstanding'
-      },
-      {
-        id: 2,
-        reason: 'Lost Book',
-        bookTitle: 'The Great Gatsby',
-        bookAuthor: 'F. Scott Fitzgerald',
-        memberName: 'John Smith',
-        amount: 25.00,
-        dueDate: '2024-08-15',
-        overdueDate: '2024-08-16',
-        daysOverdue: 24,
-        status: 'Outstanding'
-      },
-      {
-        id: 3,
-        reason: 'Overdue Book',
-        bookTitle: 'Pride and Prejudice',
-        bookAuthor: 'Jane Austen',
-        memberName: 'Alice Wilson',
-        amount: 2.50,
-        dueDate: '2024-08-20',
-        overdueDate: '2024-08-21',
-        daysOverdue: 19,
-        status: 'Paid'
-      }
-    ];
-  }
-};
-
-const getMockPaymentHistoryForRole = (role) => {
-  if (role === 'Member') {
-    return [
-      {
-        id: 1,
-        description: 'Overdue fine - "The Hobbit"',
-        amount: 5.00,
-        date: '2024-08-15',
-        method: 'Credit Card',
-        transactionId: 'TXN-001234'
-      },
-      {
-        id: 2,
-        description: 'Late return fine - "Dune"',
-        amount: 2.50,
-        date: '2024-07-28',
-        method: 'Cash',
-        transactionId: 'TXN-001123'
-      }
-    ];
-  } else {
-    return [
-      {
-        id: 1,
-        description: 'Overdue fine payment',
-        memberName: 'Alice Wilson',
-        amount: 2.50,
-        date: '2024-08-25',
-        method: 'Credit Card',
-        transactionId: 'TXN-001256'
-      },
-      {
-        id: 2,
-        description: 'Lost book replacement fee',
-        memberName: 'Bob Johnson',
-        amount: 30.00,
-        date: '2024-08-20',
-        method: 'Debit Card',
-        transactionId: 'TXN-001245'
-      },
-      {
-        id: 3,
-        description: 'Overdue fine payment',
-        memberName: 'Charlie Brown',
-        amount: 7.50,
-        date: '2024-08-18',
-        method: 'Cash',
-        transactionId: 'TXN-001234'
-      }
-    ];
-  }
 };
 
 export default FinesPayment;
