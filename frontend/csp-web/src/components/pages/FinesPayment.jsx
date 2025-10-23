@@ -430,15 +430,7 @@ const FinesPayment = ({ user }) => {
                     
                     <div className="fine-actions">
                       {user.role === 'Member' ? (
-                        fine.status === 'Outstanding' && (
-                          <button 
-                            className="btn btn-primary" 
-                            onClick={() => handlePayFine(fine.id)}
-                            disabled={processing}
-                          >
-                            Pay Fine
-                          </button>
-                        )
+                        null
                       ) : (
                         <div className="staff-actions">
                           {fine.status === 'Outstanding' && (

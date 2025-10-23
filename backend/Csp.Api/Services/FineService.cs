@@ -194,7 +194,7 @@ namespace Csp.Api.Services
                 paymentCmd.Parameters.AddWithValue("@FineId", request.FineId);
                 paymentCmd.Parameters.AddWithValue("@UserId", request.UserId);
                 paymentCmd.Parameters.AddWithValue("@Amount", fine.Amount);
-                paymentCmd.Parameters.AddWithValue("@Method", "Cash");
+                paymentCmd.Parameters.AddWithValue("@PaymentMethod", "Cash");
                 paymentCmd.Parameters.AddWithValue("@TransactionId", transactionId);
                 paymentCmd.Parameters.AddWithValue("@Description", description);
                 paymentCmd.Parameters.AddWithValue("@PaymentDate", DateTime.UtcNow);
