@@ -3,8 +3,7 @@
 ## 🎯 **Test Scope**
 **Sprint**: 4  
 **Feature**: Fine & Payment Management  
-**QA Lead**: Subodha Munasinghe  
-**Start Date**: October 23, 2025  
+**Start Date**: October 18, 2025  
 
 ---
 
