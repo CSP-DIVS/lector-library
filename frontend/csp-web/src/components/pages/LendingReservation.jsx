@@ -23,15 +23,15 @@ const LendingReservation = ({ user }) => {
     setError(null);
     try {
       if (activeTab === 'loans') {
-        const response = await lendingApi.getActiveLoans();
+        const response = await lendingApi.getActiveLoans(null, 1, 1000);
         setLoans(response.data.items || []);
       } else if (activeTab === 'history') {
-        const response = await lendingApi.getLoanHistory();
+        const response = await lendingApi.getLoanHistory(null, 1, 1000);
         setLoanHistory(response.data.items || []);
       } else {
         const response = user.role === 'Member' 
-          ? await reservationApi.getMyReservations()
-          : await reservationApi.getAllReservations();
+          ? await reservationApi.getMyReservations(1, 1000)
+          : await reservationApi.getAllReservations(1, 1000);
         setReservations(response.data.items || []);
       }
     } catch (error) {
@@ -433,7 +433,7 @@ const LendingReservation = ({ user }) => {
                         <div className="overdue-notice">
                           <span className="overdue-icon">⚠️</span>
                           <span>Overdue by {loan.overdueDays} days</span>
-                          {loan.fineAmount && <span className="fine-amount">${loan.fineAmount.toFixed(2)}</span>}
+                          {(loan.fineAmount || loan.FineAmount) && <span className="fine-amount">Rs {(loan.fineAmount || loan.FineAmount || 0).toFixed(2)}</span>}
                         </div>
                       )}
                     </div>
@@ -613,8 +613,8 @@ const LendingReservation = ({ user }) => {
                         <span className={`status-badge ${loan.status.toLowerCase()}`}>
                           {loan.status}
                         </span>
-                        {loan.fineAmount > 0 && (
-                          <span className="fine-badge">Fine: ${loan.fineAmount.toFixed(2)}</span>
+                        {(loan.fineAmount || loan.FineAmount || 0) > 0 && (
+                          <span className="fine-badge">Fine: Rs {(loan.fineAmount || loan.FineAmount || 0).toFixed(2)}</span>
                         )}
                       </div>
                     </div>
@@ -717,10 +717,10 @@ const LendingReservation = ({ user }) => {
                         <span className="detail-value text-danger">{detailModal.data.overdueDays} days</span>
                       </div>
                     )}
-                    {detailModal.data.fineAmount > 0 && (
+                    {(detailModal.data.fineAmount || detailModal.data.FineAmount || 0) > 0 && (
                       <div className="detail-row">
                         <span className="detail-label">Fine Amount:</span>
-                        <span className="detail-value text-danger">${detailModal.data.fineAmount.toFixed(2)}</span>
+                        <span className="detail-value text-danger">Rs {(detailModal.data.fineAmount || detailModal.data.FineAmount || 0).toFixed(2)}</span>
                       </div>
                     )}
                   </div>

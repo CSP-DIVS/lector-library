@@ -148,7 +148,7 @@ const MyProfile = ({ user }) => {
           <div className="stat-card">
             <div className="stat-icon">💰</div>
             <div className="stat-content">
-              <div className="stat-value">${stats.totalFines}</div>
+              <div className="stat-value">Rs {stats.totalFines}</div>
               <div className="stat-label">Total Fines</div>
             </div>
           </div>

@@ -24,8 +24,8 @@ const FinesPayment = ({ user }) => {
       
       // Fetch fines based on user role
       const finesEndpoint = user.role === 'Member' 
-        ? `${API_BASE_URL}/api/fines/my-fines`
-        : `${API_BASE_URL}/api/fines`;
+        ? `${API_BASE_URL}/api/fines/my-fines?page=1&pageSize=1000`
+        : `${API_BASE_URL}/api/fines?page=1&pageSize=1000`;
       
       console.log('Fetching fines from:', finesEndpoint);
       
@@ -52,8 +52,8 @@ const FinesPayment = ({ user }) => {
 
       // Fetch payment history based on user role
       const paymentsEndpoint = user.role === 'Member'
-        ? `${API_BASE_URL}/api/fines/my-payments`
-        : `${API_BASE_URL}/api/fines/payments`;
+        ? `${API_BASE_URL}/api/fines/my-payments?page=1&pageSize=1000`
+        : `${API_BASE_URL}/api/fines/payments?page=1&pageSize=1000`;
       
       const paymentsResponse = await fetch(paymentsEndpoint, {
         headers: {

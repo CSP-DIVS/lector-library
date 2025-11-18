@@ -76,7 +76,7 @@ namespace Csp.Api.Services
         /// <summary>
         /// The fine amount charged per day for overdue books.
         /// </summary>
-        private const decimal FINE_PER_DAY = 1.0m;
+        private const decimal FINE_PER_DAY = 20.0m; // Rs. 20 per day
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LendingService"/> class.

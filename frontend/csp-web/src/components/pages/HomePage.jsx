@@ -63,8 +63,8 @@ const HomePage = ({ user }) => {
         totalBooks: { label: 'Total Books', value: totalBooks.toString() },
         activeLoans: { label: 'Active Loans', value: activeLoans.toString() },
         overdueBooks: { label: 'Overdue Books', value: overdueBooks.toString() },
-        outstandingFines: { label: 'Outstanding Fines', value: `Rs.${outstandingFinesTotal.toFixed(2)}` },
-        totalFines: { label: 'Total Fines', value: allFines.length.toString() }
+        totalFines: { label: 'Total Fines', value: allFines.length.toString() },
+        outstandingFines: { label: 'Outstanding Fines', value: `Rs.${Math.round(outstandingFinesTotal)}` }
       });
 
       // Get recent activities from active loans
@@ -109,7 +109,7 @@ const HomePage = ({ user }) => {
         overdueLoans: { label: 'Overdue Books', value: overdueLoans.toString() },
         pendingReservations: { label: 'Pending Reservations', value: pendingReservations.toString() },
         totalReservations: { label: 'Total Reservations', value: allReservations.length.toString() },
-        finesCollected: { label: 'Fines Collected', value: `Rs.${paidFinesTotal.toFixed(2)}` },
+        finesCollected: { label: 'Fines Collected', value: `Rs.${Math.round(paidFinesTotal)}` },
         outstandingFinesCount: { label: 'Outstanding Fines', value: outstandingFinesCount.toString() }
       });
 
@@ -269,7 +269,7 @@ const HomePage = ({ user }) => {
           <h2>Overview</h2>
           <div className="stats-grid">
             {Object.entries(stats).map(([key, value]) => (
-              <div key={key} className="stat-card">
+              <div key={key} className={`stat-card ${key === 'outstandingFines' ? 'stat-card-wide' : ''}`}>
                 <div className="stat-icon">{getStatIcon(key)}</div>
                 <div className="stat-content">
                   <div className="stat-value">{value.value}</div>
