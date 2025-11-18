@@ -32,7 +32,7 @@ jobs:
       run: dotnet build backend/Csp.Api --configuration Release --no-restore
     
     - name: Run Unit Tests
-      run: dotnet test backend/Csp.Unit.Tests/Csp.Unit.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=unit-tests.trx"
+      run: dotnet test backend/Csp.Unit.Tests/Csp.Unit.Tests.csproj --configuration Release --verbosity normal
       continue-on-error: false
     
     - name: Run Integration Tests
@@ -40,14 +40,7 @@ jobs:
       with:
         timeout_minutes: 10
         max_attempts: 3
-        command: dotnet test backend/Csp.Integration.Tests/Csp.Integration.Tests.csproj --configuration Release --no-build --verbosity normal --logger "trx;LogFileName=integration-tests.trx"
-    
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results
-        path: backend/**/TestResults/**/*.trx
+        command: dotnet test backend/Csp.Integration.Tests/Csp.Integration.Tests.csproj --configuration Release --verbosity normal
 
   build-and-deploy:
     runs-on: ubuntu-latest
