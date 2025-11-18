@@ -1,12 +1,49 @@
-# React + Vite
+# Lector Library - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend for the Lector Library project, a comprehensive library management system. It is a single-page application built with React and Vite.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+-   **Book Catalog:** Browse and search for books in the library.
+-   **User Authentication:** Login and registration for library members.
+-   **Member Dashboard:** View loan history, fines, and manage reservations.
+-   **Admin Dashboard:** Manage books, members, and loans.
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+-   Node.js and npm
+
+### Installation
+
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend/csp-web
+    ```
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+3.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+    The application will be available at `http://localhost:5173`.
+
+## Project Structure
+
+The `src` folder contains the main source code for the application, organized as follows:
+
+-   `components`: Contains reusable UI components.
+-   `pages`: Contains the main pages of the application.
+-   `lib`: Contains the API client for communicating with the backend.
+-   `styles`: Contains global styles and themes.
+
+## API Integration
+
+The frontend communicates with the backend API to fetch and update data. The API client is located in `src/lib/api.js`.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a pull request or open an issue.
