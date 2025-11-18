@@ -6,7 +6,7 @@ on:
       - main # Or your default branch
   pull_request:
     branches:
-      - main # Or your default branch
+      - deployment
   workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
 
 jobs:
