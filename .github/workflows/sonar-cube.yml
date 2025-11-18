@@ -13,26 +13,27 @@ jobs:
   sonar-analysis:
     name: SonarQube Analysis
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
+      
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectBaseDir: backend
           args: >
-            -Dsonar.projectKey="${{ secrets.SONAR_PROJECT_KEY }}"
-            -Dsonar.organization="${{ secrets.SONAR_ORGANIZATION_KEY }}"
-            -Dsonar.host.url="${{ secrets.SONAR_HOST_URL }}"
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION_KEY }}
             -Dsonar.cs.opencover.reportsPaths=**/TestResults/**/coverage.opencover.xml
