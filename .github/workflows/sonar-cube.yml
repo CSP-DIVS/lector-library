@@ -3,11 +3,11 @@ name: Standalone SonarQube Analysis
 on:
   push:
     branches:
-      - main # Or your default branch
+      - deployment
   pull_request:
     branches:
       - deployment
-  workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   sonar-analysis:
@@ -17,27 +17,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # This is a key step for SonarQube's pull request analysis
           fetch-depth: 0
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x' # Match the .NET version of your project
+          dotnet-version: '8.0.x'
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@master
         env:
-          # This token is used to authenticate with SonarQube
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          # This is required for SonarQube to decorate your pull requests
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # Sets the base directory for the analysis to your 'backend' folder
           projectBaseDir: backend
-          # Arguments to pass to the SonarScanner
           args: >
-            /k:"${{ secrets.SONAR_PROJECT_KEY }}"
-            /o:"${{ secrets.SONAR_ORGANIZATION_KEY }}"
-            /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}"
-            /d:sonar.cs.opencover.reportsPaths=**/TestResults/**/coverage.opencover.xml
+            -Dsonar.projectKey="${{ secrets.SONAR_PROJECT_KEY }}"
+            -Dsonar.organization="${{ secrets.SONAR_ORGANIZATION_KEY }}"
+            -Dsonar.host.url="${{ secrets.SONAR_HOST_URL }}"
+            -Dsonar.cs.opencover.reportsPaths=**/TestResults/**/coverage.opencover.xml
