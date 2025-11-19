@@ -222,9 +222,9 @@ const FinesPayment = ({ user }) => {
       doc.setFont('helvetica', 'bold');
       doc.text('Summary', 14, 40);
       
-      const outstandingFines = fines.filter(f => f.status === 'Outstanding');
-      const paidFines = fines.filter(f => f.status === 'Paid');
-      const waivedFines = fines.filter(f => f.status === 'Waived');
+      const outstandingFines = fines.filter(f => f.status.toLowerCase() === 'outstanding');
+      const paidFines = fines.filter(f => f.status.toLowerCase() === 'paid');
+      const waivedFines = fines.filter(f => f.status.toLowerCase() === 'waived');
       const totalOutstanding = outstandingFines.reduce((sum, f) => sum + f.amount, 0);
       const totalPaid = paidFines.reduce((sum, f) => sum + f.amount, 0);
       const totalWaived = waivedFines.reduce((sum, f) => sum + f.amount, 0);
@@ -308,7 +308,7 @@ const FinesPayment = ({ user }) => {
   };
 
   const totalOutstanding = fines
-    .filter(fine => fine.status === 'Outstanding')
+    .filter(fine => fine.status.toLowerCase() === 'outstanding')
     .reduce((sum, fine) => sum + fine.amount, 0);
 
   if (loading) {
@@ -340,7 +340,7 @@ const FinesPayment = ({ user }) => {
             <div className="summary-info">
               <h3>Outstanding Balance</h3>
               <div className="total-amount">Rs {totalOutstanding.toFixed(2)}</div>
-              <p>{fines.filter(f => f.status === 'Outstanding').length} unpaid fine(s)</p>
+              <p>{fines.filter(f => f.status.toLowerCase() === 'outstanding').length} unpaid fine(s)</p>
             </div>
           </div>
         </div>
@@ -354,7 +354,7 @@ const FinesPayment = ({ user }) => {
           >
             {user.role === 'Member' ? 'Outstanding Fines' : 'All Fines'}
             <span className="tab-count">
-              {fines.filter(f => user.role === 'Member' ? f.status === 'Outstanding' : true).length}
+              {fines.filter(f => user.role === 'Member' ? f.status.toLowerCase() === 'outstanding' : true).length}
             </span>
           </button>
           <button
@@ -385,7 +385,7 @@ const FinesPayment = ({ user }) => {
             
             <div className="fines-list">
               {fines
-                .filter(fine => user.role === 'Member' ? fine.status === 'Outstanding' : true)
+                .filter(fine => user.role === 'Member' ? fine.status.toLowerCase() === 'outstanding' : true)
                 .map(fine => (
                 <div key={fine.id} className="fine-card">
                   <div className="fine-info">
@@ -500,7 +500,7 @@ const FinesPayment = ({ user }) => {
         )}
       </div>
 
-      {((activeTab === 'outstanding' && fines.length === 0) || 
+      {((activeTab === 'outstanding' && fines.filter(fine => user.role === 'Member' ? fine.status.toLowerCase() === 'outstanding' : true).length === 0) || 
         (activeTab === 'history' && paymentHistory.length === 0)) && (
         <div className="empty-state">
           <div className="empty-icon">
