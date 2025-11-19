@@ -41,9 +41,9 @@ const FinesPayment = ({ user }) => {
       if (finesResponse.ok) {
         const finesData = await finesResponse.json();
         console.log('Fines data received:', finesData);
-        console.log('Fines items:', finesData.items);
-        console.log('Number of fines:', finesData.items?.length || 0);
-        setFines(finesData.items || []);
+        console.log('Fines items:', finesData.items || finesData.Items);
+        console.log('Number of fines:', (finesData.items || finesData.Items)?.length || 0);
+        setFines(finesData.items || finesData.Items || []);
       } else {
         const errorText = await finesResponse.text();
         console.error('Failed to fetch fines. Status:', finesResponse.status);
@@ -64,7 +64,7 @@ const FinesPayment = ({ user }) => {
       
       if (paymentsResponse.ok) {
         const paymentsData = await paymentsResponse.json();
-        setPaymentHistory(paymentsData.items || []);
+        setPaymentHistory(paymentsData.items || paymentsData.Items || []);
       }
 
       // Fetch statistics if member
