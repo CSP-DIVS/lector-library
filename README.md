@@ -1,107 +1,134 @@
-# Lector Library Management System
+# Lector Library – Full-Stack Library Management System
 
-A full-stack library management system with book cataloging, lending, reservations, and fines management. Built with ASP.NET Core 8 and React 18.
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg) ![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4) ![React 18](https://img.shields.io/badge/React-18-149ECA) ![Node 20+](https://img.shields.io/badge/Node-20%2F22-43853D)
+
+Modern, role-aware library management platform with cataloging, lending, reservations, fines, and admin tooling. Built with ASP.NET Core and React (Vite), deployed to Azure with GitHub Actions.
+
+## Table of Contents
+- [Live Demo](#live-demo)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Project Layout](#project-layout)
+- [Testing](#testing)
+- [Docker](#docker)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Docs](#docs)
 
 ## Live Demo
+Production: https://lector-lms-bpb2b4hzeqaqdth5.southindia-01.azurewebsites.net
 
-**Production**: https://lector-lms-bpb2b4hzeqaqdth5.southindia-01.azurewebsites.net
-
-**Test Accounts**:
-- Admin: `admin` / `admin123`
-- Librarian: `librarian` / `librarian123`
-- Member: `member` / `member123`
+Test accounts:
+- Admin: admin / admin123
+- Librarian: librarian / librarian123
+- Member: member / member123
 
 ## Features
-
-- JWT authentication with role-based access (Admin, Librarian, Member)
-- Book catalog with search, filtering, and stock management
-- Lending system with due dates, renewals, and return processing
-- Book reservations with queue management
-- Automatic fine calculation (Rs. 20/day) and payment tracking
-- User management with profile updates
-- Role-specific dashboards with statistics
+- JWT auth with role policies (Admin, Librarian, Member)
+- Book catalog: search, filter, stock management
+- Lending: due dates, renewals, returns
+- Reservations with queue management
+- Automatic fines (Rs. 20/day) and payment tracking
+- User management, profile updates, password changes
+- Role-specific dashboards and stats
 - PDF report generation for fines
 
-## Tech Stack
+## Architecture
+- Backend: ASP.NET Core 8, ADO.NET (MySQL), JWT (HS256)
+- Frontend: React 18, Vite, Axios
+- Database: MySQL (Azure Flexible Server in prod)
+- Hosting/CI: Azure App Service with GitHub Actions
 
-**Backend**: .NET 8, ASP.NET Core, ADO.NET, MySQL, JWT  
-**Frontend**: React 18, Vite, Axios  
-**Database**: Azure MySQL Flexible Server  
-**Hosting**: Azure App Services with GitHub Actions CI/CD
+## Requirements
+- .NET 8 SDK
+- Node 20.19+ or 22.12+
+- MySQL 8.0 (local or container)
+- Git
 
 ## Quick Start
-
-### Prerequisites
-- .NET 8 SDK
-- Node.js 18+
-- MySQL 8.0
-
-### Setup
-
-1. **Clone and setup database**
-```bash
-git clone https://github.com/CSP-DIVS/lector-library.git
-cd lector-library
-
-# Create MySQL database
-mysql -u root -p
-CREATE DATABASE lector_lms_dev;
+1) Backend API
 ```
-
-2. **Configure backend** (`backend/Csp.Api/appsettings.Development.json`)
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=lector_lms_dev;User Id=root;Password=your_password;SslMode=None"
-  },
-  "Jwt": {
-    "Secret": "your-32-character-secret-key-here",
-    "Issuer": "LectorLibrary",
-    "Audience": "LectorLibraryUsers"
-  }
-}
-```
-
-3. **Run backend**
-```bash
 cd backend/Csp.Api
 dotnet restore
 dotnet run
-# Runs on http://localhost:5192
+# Default: http://localhost:5192
 ```
+The API ensures tables exist and seeds default users on first run.
 
-4. **Run frontend**
-```bash
+2) Frontend
+```
 cd frontend/csp-web
 echo "VITE_API_URL=http://localhost:5192" > .env
 npm install
 npm run dev
-# Runs on http://localhost:5173
+# Default: http://localhost:5173
+```
+
+3) VS Code tasks (optional)
+- Start both: Start Full Stack (Frontend + Backend)
+- Individually: Backend: Start Development Server, Frontend: Start Development Server
+
+## Configuration
+- Backend (appsettings or env vars)
+  - ConnectionStrings:DefaultConnection=Server=localhost;Port=3306;Database=lector;User Id=root;Password=pass;SslMode=None
+  - Jwt:Secret (32+ chars), Jwt:Issuer, Jwt:Audience
+  - CORS allows http://localhost:5173 by default
+- Frontend env
+  - VITE_API_URL (defaults to http://localhost:5192)
+
+Security: use a strong Jwt:Secret, lock CORS to trusted origins, enable HTTPS in production.
+
+## Project Layout
+```
+backend/
+  Csp.Api/               API (ASP.NET Core)
+  Csp.Api.Tests/         Unit + integration tests
+  Csp.Integration.Tests/ Integration tests (Testcontainers)
+  Csp.E2E.Tests/         Selenium end-to-end tests
+frontend/
+  csp-web/               React app (Vite)
+infra/
+  docker-compose.yml     Dev compose for API + DB + web
+documentation/           Deployment, fixes, quick guides
 ```
 
 ## Testing
+- Unit: dotnet test backend/Csp.Api.Tests/Csp.Api.Tests.csproj
+- Integration: dotnet test backend/Csp.Integration.Tests/Csp.Integration.Tests.csproj (Docker Desktop required)
+- E2E (Selenium):
+  - cd backend/Csp.E2E.Tests
+  - set E2E_BASE_URL=http://localhost:5173
+  - dotnet test
+- VS Code tasks: Run All Tests, Backend: Run Tests, Frontend: Run Tests
 
-```bash
-# Unit tests
-cd backend/Csp.Api.Tests
-dotnet test
-
-# Integration tests
-cd backend/Csp.Integration.Tests
-dotnet test
-
-# E2E tests (requires running application)
-cd backend/Csp.E2E.Tests
-dotnet test
-```
+## Docker
+- Local stack: docker compose -f infra/docker-compose.yml up --build
+- Images: infra/backend.Dockerfile, infra/frontend.Dockerfile
+- Ensure env values match your DB/JWT settings.
 
 ## Deployment
+Configured for Azure App Service with GitHub Actions CI/CD.
+- App Service: lector-lms-bpb2b4hzeqaqdth5.southindia-01.azurewebsites.net
+- Database: Azure Database for MySQL
+- Static files: frontend build can be served from backend deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete Azure deployment instructions including:
-- Azure App Service setup
-- MySQL Flexible Server configuration
-- GitHub Actions CI/CD pipeline
-- Environment variables and security
+See documentation/DEPLOYMENT.md for full steps.
+
+## Troubleshooting
+- 500 on login (HS256): set Jwt:Secret to 32+ chars
+- 404 on /api/users/my-profile: include Authorization: Bearer <token> and restart API after config changes
+- Frontend build errors: use Node 20.19+ or 22.12+
+
+## Docs
+- Deployment: documentation/DEPLOYMENT.md
+- Quick references: documentation/TASK_QUICK_REFERENCE.md
+- Auth fix: documentation/FRONTEND_AUTH_FIX.md
+- Fines: documentation/QUICK_START_FINES.md
+- Receipts testing: documentation/RECEIPT_TESTING_GUIDE.md
+- More: documentation/
 
 
 
